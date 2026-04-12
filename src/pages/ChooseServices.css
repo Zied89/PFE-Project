@@ -1,0 +1,235 @@
+/* ===== Reset & Base ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #f0f4ff;
+  min-height: 100vh;
+}
+
+/* ===== Navbar ===== */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  animation: slideDown 0.5s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-icon {
+  font-size: 22px;
+}
+
+.brand-name {
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.navbar-user {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.btn-logout {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1.5px solid #6366f1;
+  background: transparent;
+  color: #6366f1;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.btn-logout:hover {
+  background: #6366f1;
+  color: #fff;
+  transform: scale(1.04);
+}
+
+/* ===== Page ===== */
+.page {
+  padding-top: 64px;
+  min-height: 100vh;
+  background: linear-gradient(160deg, #f0f4ff 0%, #faf5ff 100%);
+}
+
+/* ===== Hero ===== */
+.hero {
+  text-align: center;
+  padding: 4rem 1rem 2rem;
+  animation: fadeUp 0.6s ease both;
+}
+
+.hero-title {
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #1e1b4b;
+  margin-bottom: 0.6rem;
+}
+
+.hero-subtitle {
+  font-size: 1.1rem;
+  color: #64748b;
+}
+
+/* ===== Cards Grid ===== */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  max-width: 860px;
+  margin: 2rem auto 4rem;
+  padding: 0 1.5rem;
+}
+
+/* ===== Card ===== */
+.card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  animation: fadeUp 0.7s ease both;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  border-radius: 20px 20px 0 0;
+}
+
+.card--formation::before {
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+}
+
+.card--coworking::before {
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+}
+
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 16px 40px rgba(99, 102, 241, 0.15);
+}
+
+.card--formation:hover {
+  border-color: #c7d2fe;
+}
+
+.card--coworking:hover {
+  border-color: #bae6fd;
+}
+
+/* ===== Card Icon ===== */
+.card-icon {
+  font-size: 3rem;
+  margin-bottom: 1.2rem;
+  display: inline-block;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+/* ===== Card Content ===== */
+.card-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e1b4b;
+  margin-bottom: 0.7rem;
+}
+
+.card-desc {
+  font-size: 0.95rem;
+  color: #64748b;
+  line-height: 1.7;
+  margin-bottom: 1.8rem;
+}
+
+/* ===== Card Button ===== */
+.card-btn {
+  display: inline-block;
+  padding: 10px 22px;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.card--formation .card-btn {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+}
+
+.card--coworking .card-btn {
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: #fff;
+}
+
+.card-btn:hover {
+  opacity: 0.88;
+  transform: scale(1.04);
+}
+
+/* ===== Animations ===== */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 600px) {
+  .hero-title { font-size: 1.8rem; }
+  .navbar { padding: 0 1rem; }
+  .navbar-user { display: none; }
+}
