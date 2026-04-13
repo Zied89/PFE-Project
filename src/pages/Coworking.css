@@ -1,0 +1,174 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Nunito:wght@400;600;700&display=swap');
+
+.cw-page {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #dbeeff 0%, #f0f8ff 40%, #e8f4ff 100%);
+  font-family: 'Nunito', sans-serif;
+  position: relative;
+  overflow-x: hidden;
+}
+.cw-page::before, .cw-page::after {
+  content: ''; position: absolute; border-radius: 50%;
+  border: 1.5px solid #b8d8f844; pointer-events: none; z-index: 0;
+}
+.cw-page::before { width: 320px; height: 320px; top: -120px; right: -80px; }
+.cw-page::after  { width: 180px; height: 180px; bottom: -60px; left: -50px; }
+
+.bg-glow  { position: absolute; inset: 0; background: radial-gradient(ellipse at 65% 5%, #b8d8f855 0%, transparent 60%); pointer-events: none; z-index: 0; }
+.bg-glow2 { position: absolute; inset: 0; background: radial-gradient(ellipse at 10% 80%, #c8e8ff44 0%, transparent 55%); pointer-events: none; z-index: 0; }
+
+/* ── Navbar ── */
+.navbar { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 18px 28px 0; }
+.navbar-brand { display: flex; align-items: center; gap: 10px; }
+.brand-icon { width: 36px; height: 36px; background: linear-gradient(135deg, #1a6fc4, #5ab4ff); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 0 12px #5ab4ff88; }
+.brand-name { font-family: 'Cinzel', serif; font-size: 15px; color: #0d4f8c; letter-spacing: .05em; }
+.navbar-links { display: flex; align-items: center; gap: 14px; }
+.navbar-user { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #2a6cb5; font-weight: 600; }
+.user-dot { width: 8px; height: 8px; background: #4dd6a0; border-radius: 50%; box-shadow: 0 0 6px #4dd6a0; }
+.btn-back { font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 700; padding: 6px 16px; border: 1.5px solid #2a6cb5; border-radius: 20px; background: transparent; color: #2a6cb5; cursor: pointer; letter-spacing: .04em; display: flex; align-items: center; gap: 6px; transition: background .2s, color .2s; }
+.btn-back:hover { background: #2a6cb5; color: #fff; }
+.back-arrow { font-size: 14px; line-height: 1; }
+
+/* ── Hero ── */
+.cw-hero { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: flex-end; padding: 34px 28px 18px; flex-wrap: wrap; gap: 16px; }
+.hero-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .18em; color: #4a9de0; text-transform: uppercase; margin: 0 0 8px; }
+.hero-title { font-family: 'Cinzel', serif; font-size: 28px; font-weight: 600; color: #0b3d78; margin: 0 0 10px; text-shadow: 0 2px 16px #b8d8f855; line-height: 1.2; }
+.hero-subtitle { font-size: 13px; color: #3a7abf; margin: 0 0 16px; line-height: 1.6; }
+.hero-divider { width: 60px; height: 3px; background: linear-gradient(90deg, #5ab4ff, #a8d8ff); border-radius: 2px; }
+
+.cw-stats { display: flex; gap: 12px; flex-wrap: wrap; }
+.cw-stat { background: rgba(255,255,255,.65); border: 1.5px solid #b8d8f8; border-radius: 16px; padding: 12px 18px; text-align: center; backdrop-filter: blur(6px); min-width: 72px; font-size: 12px; color: #3a7abf; font-weight: 600; }
+.cw-stat span { display: block; font-family: 'Cinzel', serif; font-size: 22px; font-weight: 600; color: #1a6fc4; margin-bottom: 2px; }
+
+/* ── Success toast ── */
+.cw-success {
+  position: relative; z-index: 3;
+  margin: 12px 28px 0;
+  background: #e0f5ec; border: 1.5px solid #9adcc0;
+  border-radius: 12px; padding: 12px 20px;
+  font-size: 13px; font-weight: 700; color: #1a8a5a;
+  animation: fadeUp .3s ease;
+}
+
+/* ── Tabs ── */
+.cw-tabs { position: relative; z-index: 2; display: flex; gap: 8px; padding: 18px 28px 22px; flex-wrap: wrap; }
+.cw-tab { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; padding: 8px 22px; border-radius: 20px; border: 1.5px solid #b8d8f8; background: rgba(255,255,255,.6); color: #3a7abf; cursor: pointer; letter-spacing: .04em; display: flex; align-items: center; gap: 6px; transition: background .2s, color .2s, border-color .2s, transform .15s; }
+.cw-tab:hover { border-color: #5ab4ff; transform: translateY(-2px); }
+.cw-tab.active { background: linear-gradient(135deg, #1a6fc4, #5ab4ff); color: #fff; border-color: transparent; box-shadow: 0 4px 14px #1a6fc433; }
+.cw-tab-badge { background: #fff; color: #1a6fc4; font-size: 11px; font-weight: 700; border-radius: 20px; padding: 1px 7px; min-width: 20px; text-align: center; }
+.cw-tab.active .cw-tab-badge { background: rgba(255,255,255,.3); color: #fff; }
+
+/* ── Content ── */
+.cw-content { position: relative; z-index: 2; padding: 0 28px 48px; }
+.cw-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.cw-section-title { font-family: 'Cinzel', serif; font-size: 18px; font-weight: 600; color: #0b3d78; }
+.cw-btn-add { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; padding: 8px 20px; border-radius: 20px; background: linear-gradient(135deg, #1a6fc4, #5ab4ff); color: #fff; border: none; cursor: pointer; box-shadow: 0 4px 14px #1a6fc433; transition: opacity .2s, transform .15s; }
+.cw-btn-add:hover { opacity: .9; transform: translateY(-2px); }
+
+/* ── Cards ── */
+.cw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+.cw-card { background: rgba(255,255,255,.75); border: 1.5px solid #b8d8f8; border-radius: 20px; padding: 22px 20px 18px; position: relative; overflow: hidden; backdrop-filter: blur(8px); animation: fadeUp .4s ease both; transition: transform .25s, box-shadow .25s, border-color .25s; }
+.cw-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, #e8f5ff44 0%, #ffffff22 100%); z-index: 0; pointer-events: none; }
+.cw-card:hover { transform: translateY(-5px); box-shadow: 0 12px 32px #5ab4ff2a; border-color: #5ab4ff; }
+.cw-card::after { content: ''; position: absolute; top: -60%; left: -60%; width: 60%; height: 200%; background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.45) 50%, transparent 70%); transform: rotate(20deg); transition: left .5s; pointer-events: none; z-index: 1; }
+.cw-card:hover::after { left: 120%; }
+
+.cw-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; position: relative; z-index: 2; }
+.cw-card-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #dbeeff, #b8d8f8); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid #9accf5; box-shadow: 0 4px 14px #5ab4ff22; }
+.cw-card-title { font-family: 'Cinzel', serif; font-size: 15px; font-weight: 600; color: #0b3d78; margin: 0 0 8px; position: relative; z-index: 2; }
+.cw-card-meta { font-size: 12px; color: #3a6e9e; margin: 0 0 14px; position: relative; z-index: 2; }
+.cw-card-meta strong { color: #1a6fc4; }
+
+/* Badges */
+.cw-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: .04em; }
+.badge--green { background: #e0f5ec; color: #1a8a5a; border: 1px solid #9adcc0; }
+.badge--red   { background: #fceaea; color: #c0392b; border: 1px solid #f0aaaa; }
+.badge--blue  { background: #dbeeff; color: #1a6fc4; border: 1px solid #9accf5; }
+.badge--amber { background: #fef3dc; color: #b07d0a; border: 1px solid #f5d07a; }
+
+.cw-card-actions { display: flex; gap: 8px; position: relative; z-index: 2; margin-bottom: 10px; }
+.cw-btn-edit { font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 20px; border: 1.5px solid #2a6cb5; background: transparent; color: #2a6cb5; cursor: pointer; transition: background .2s, color .2s; flex: 1; }
+.cw-btn-edit:hover { background: #2a6cb5; color: #fff; }
+.cw-btn-del { font-size: 14px; padding: 6px 10px; border-radius: 20px; border: 1.5px solid #e8aaaa; background: transparent; color: #c0392b; cursor: pointer; transition: background .2s; }
+.cw-btn-del:hover { background: #fceaea; }
+
+/* Reserve button */
+.cw-btn-reserv {
+  position: relative; z-index: 2;
+  width: 100%; font-family: 'Nunito', sans-serif;
+  font-size: 12px; font-weight: 700;
+  padding: 8px 14px; border-radius: 12px;
+  background: linear-gradient(135deg, #e8f5ff, #dbeeff);
+  border: 1.5px solid #9accf5; color: #1a6fc4;
+  cursor: pointer; letter-spacing: .03em;
+  transition: background .2s, transform .15s, box-shadow .2s;
+}
+.cw-btn-reserv:hover {
+  background: linear-gradient(135deg, #1a6fc4, #5ab4ff);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 4px 14px #1a6fc433;
+  transform: translateY(-1px);
+}
+
+.cw-card-line { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #5ab4ff, #a8d8ff); border-radius: 0 0 20px 20px; transform: scaleX(0); transform-origin: left; transition: transform .3s; }
+.cw-card:hover .cw-card-line { transform: scaleX(1); }
+
+/* ── Reservations list ── */
+.cw-reserv-list { display: flex; flex-direction: column; gap: 14px; }
+.cw-reserv-card {
+  background: rgba(255,255,255,.75); border: 1.5px solid #b8d8f8;
+  border-radius: 16px; padding: 18px 22px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  position: relative; overflow: hidden;
+  backdrop-filter: blur(8px);
+  animation: fadeUp .4s ease both;
+  transition: transform .2s, box-shadow .2s;
+}
+.cw-reserv-card:hover { transform: translateX(4px); box-shadow: 0 6px 24px #5ab4ff22; }
+.cw-reserv-left { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
+.cw-reserv-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #dbeeff, #b8d8f8); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid #9accf5; flex-shrink: 0; }
+.cw-reserv-title { font-family: 'Cinzel', serif; font-size: 15px; font-weight: 600; color: #0b3d78; margin: 0 0 8px; }
+.cw-reserv-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cw-reserv-date, .cw-reserv-time { font-size: 12px; color: #3a7abf; font-weight: 600; }
+.cw-reserv-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.cw-btn-annuler { font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 700; padding: 6px 16px; border-radius: 20px; border: 1.5px solid #e8aaaa; background: transparent; color: #c0392b; cursor: pointer; transition: background .2s; }
+.cw-btn-annuler:hover { background: #fceaea; }
+
+/* ── Empty state ── */
+.cw-empty { text-align: center; padding: 60px 20px; color: #3a7abf; }
+.cw-empty-icon { font-size: 48px; margin-bottom: 16px; }
+.cw-empty p { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.cw-empty-sub { font-size: 13px; color: #78b8f0; }
+
+/* ── Modal ── */
+.cw-overlay { position: fixed; inset: 0; background: rgba(10,40,80,.35); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.cw-modal { background: rgba(255,255,255,.96); border: 1.5px solid #b8d8f8; border-radius: 24px; padding: 28px 28px 24px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px #1a6fc422; animation: fadeUp .25s ease; }
+.cw-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+.cw-modal-title { font-family: 'Cinzel', serif; font-size: 17px; font-weight: 600; color: #0b3d78; }
+.cw-modal-close { background: transparent; border: none; font-size: 16px; color: #3a7abf; cursor: pointer; padding: 4px 8px; border-radius: 8px; transition: background .2s; }
+.cw-modal-close:hover { background: #dbeeff; }
+
+/* ── Form ── */
+.cw-form { display: flex; flex-direction: column; gap: 10px; }
+.cw-form label { font-size: 12px; font-weight: 700; color: #2a6cb5; letter-spacing: .06em; text-transform: uppercase; }
+.cw-form input, .cw-form select { font-family: 'Nunito', sans-serif; font-size: 13px; color: #0b3d78; padding: 9px 14px; border-radius: 12px; border: 1.5px solid #b8d8f8; background: rgba(255,255,255,.8); outline: none; transition: border-color .2s; }
+.cw-form input:focus, .cw-form select:focus { border-color: #5ab4ff; }
+
+.cw-reserv-type-badge { font-size: 13px; font-weight: 700; color: #1a6fc4; background: #dbeeff; border: 1.5px solid #9accf5; border-radius: 12px; padding: 8px 16px; text-align: center; margin-bottom: 4px; }
+
+.cw-form-actions { display: flex; gap: 10px; margin-top: 8px; }
+.cw-btn-cancel { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; padding: 9px 20px; border-radius: 20px; border: 1.5px solid #b8d8f8; background: transparent; color: #3a7abf; cursor: pointer; flex: 1; transition: background .2s; }
+.cw-btn-cancel:hover { background: #f0f8ff; }
+.cw-btn-save { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; padding: 9px 20px; border-radius: 20px; background: linear-gradient(135deg, #1a6fc4, #5ab4ff); color: #fff; border: none; cursor: pointer; flex: 1; box-shadow: 0 4px 14px #1a6fc433; transition: opacity .2s, transform .15s; }
+.cw-btn-save:hover { opacity: .9; transform: translateY(-1px); }
+
+.cw-delete-msg { font-size: 14px; color: #3a6e9e; text-align: center; margin-bottom: 8px; line-height: 1.6; }
+.cw-delete-msg strong { color: #0b3d78; }
+.cw-btn-del-confirm { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; padding: 9px 20px; border-radius: 20px; background: #c0392b; color: #fff; border: none; cursor: pointer; flex: 1; transition: opacity .2s; }
+.cw-btn-del-confirm:hover { opacity: .85; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
