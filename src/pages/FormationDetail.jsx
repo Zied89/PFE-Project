@@ -15,6 +15,8 @@ const categoriesData = {
       { id: 4, title: "Node.js & Express", duration: "5 semaines", level: "Intermédiaire", students: 160 },
       { id: 5, title: "Bases de données SQL & NoSQL", duration: "4 semaines", level: "Intermédiaire", students: 134 },
       { id: 6, title: "Déploiement & DevOps", duration: "3 semaines", level: "Avancé", students: 98 },
+      { id: 7, title: "TypeScript pour les développeurs JS", duration: "4 semaines", level: "Intermédiaire", students: 112 },
+      { id: 8, title: "Web Performance & SEO", duration: "3 semaines", level: "Avancé", students: 76 },
     ],
   },
   2: {

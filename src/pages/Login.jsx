@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./auth.css";
 
+const API_URL = "http://localhost:5000/api";
+
 function Login({ setUser }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -20,23 +22,31 @@ function Login({ setUser }) {
 
     setLoading(true);
 
-    // Simulate API call — replace with your real auth logic
-    setTimeout(() => {
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      const found = users.find(
-        (u) => u.email === email && u.password === password
-      );
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-      if (!found) {
-        setError("Email ou mot de passe incorrect.");
-        setLoading(false);
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Une erreur est survenue.");
         return;
       }
 
-      setUser(found);
+      // Stocker le token JWT
+      localStorage.setItem("token", data.token);
+
+      // Mettre à jour l'état utilisateur
+      setUser(data.user);
       navigate("/choose-services");
+    } catch (err) {
+      setError("Impossible de contacter le serveur. Réessayez plus tard.");
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (

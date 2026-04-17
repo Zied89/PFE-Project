@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./auth.css";
 
+const API_URL = "http://localhost:5000/api";
+
 function Register({ setUser }) {
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -25,23 +27,31 @@ function Register({ setUser }) {
 
     setLoading(true);
 
-    // Simulate API call — replace with your real auth logic
-    setTimeout(() => {
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
+    try {
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
 
-      if (users.find((u) => u.email === email)) {
-        setError("Cet email est déjà utilisé.");
-        setLoading(false);
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Une erreur est survenue.");
         return;
       }
 
-      const newUser = { name, email, password };
-      localStorage.setItem("users", JSON.stringify([...users, newUser]));
+      // Stocker le token JWT
+      localStorage.setItem("token", data.token);
 
-      setUser(newUser);
+      // Mettre à jour l'état utilisateur
+      setUser(data.user);
       navigate("/choose-services");
+    } catch (err) {
+      setError("Impossible de contacter le serveur. Réessayez plus tard.");
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (
