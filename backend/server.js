@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 5000;
 
 // ─── Middlewares ───────────────────────────────────────────────────────────
 app.use(cors({
-  origin: "http://localhost:3000", // URL de ton frontend React
+  origin: ["http://localhost:3000", "http://localhost:5001"],
   credentials: true,
 }));
 app.use(express.json());
