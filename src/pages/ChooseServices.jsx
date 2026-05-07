@@ -3,6 +3,7 @@ import "./ChooseServices.css";
 
 function ChooseServices({ user, setUser }) {
   const navigate = useNavigate();
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   const handleLogout = () => {
     setUser(null);
@@ -11,7 +12,6 @@ function ChooseServices({ user, setUser }) {
 
   return (
     <div className="page">
-      {/* Atmospheric background */}
       <div className="bg-glow" />
 
       {/* Navbar */}
@@ -24,7 +24,18 @@ function ChooseServices({ user, setUser }) {
           <div className="navbar-user">
             <span className="user-dot" />
             {user?.name || user?.email || "Utilisateur"}
+            {isAdmin && (
+              <span style={{ marginLeft: 6, fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: 20, background: "rgba(212,168,67,0.2)", color: "#d4a843", border: "1px solid rgba(212,168,67,0.3)" }}>
+                {user.role}
+              </span>
+            )}
           </div>
+          {isAdmin && (
+            <button className="btn-logout" style={{ background: "rgba(167,139,250,0.15)", borderColor: "rgba(167,139,250,0.4)", color: "#a78bfa" }}
+              onClick={() => navigate("/admin")}>
+              🛡 Dashboard Admin
+            </button>
+          )}
           <button className="btn-logout" onClick={handleLogout}>
             Déconnexion
           </button>
@@ -46,10 +57,7 @@ function ChooseServices({ user, setUser }) {
       <div className="cards-grid">
 
         {/* Card Formation */}
-        <div
-          className="card card--formation"
-          onClick={() => navigate("/formation")}
-        >
+        <div className="card card--formation" onClick={() => navigate("/formation")}>
           <p className="card-num">01 — Formation</p>
           <div className="card-icon-wrap">🎓</div>
           <h2 className="card-title">Formation</h2>
@@ -65,10 +73,7 @@ function ChooseServices({ user, setUser }) {
         </div>
 
         {/* Card Coworking */}
-        <div
-          className="card card--coworking"
-          onClick={() => navigate("/coworking")}
-        >
+        <div className="card card--coworking" onClick={() => navigate("/coworking")}>
           <p className="card-num">02 — Coworking</p>
           <div className="card-icon-wrap">🏢</div>
           <h2 className="card-title">Coworking</h2>

@@ -1,17 +1,23 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ChooseServices from "./pages/ChooseServices";
 import Formation from "./pages/Formation";
 import FormationDetail from "./pages/FormationDetail";
 import Coworking from "./pages/Coworking";
+import Admin from "./pages/AdminDashboard";
 
 function App() {
-  const [user, setUser] = useState(() => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
     const saved = localStorage.getItem("user");
-    return saved ? JSON.parse(saved) : null;
-  });
+    setUser(saved ? JSON.parse(saved) : null);
+    setLoading(false);
+  }, []);
 
   const handleSetUser = (u) => {
     if (u) {
@@ -21,6 +27,8 @@ function App() {
     }
     setUser(u);
   };
+
+  if (loading) return null;
 
   return (
     <BrowserRouter>
@@ -41,11 +49,7 @@ function App() {
         <Route
           path="/formation"
           element={
-            user ? (
-              <Formation user={user} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            user ? <Formation user={user} /> : <Navigate to="/login" replace />
           }
         />
         <Route
@@ -61,8 +65,14 @@ function App() {
         <Route
           path="/coworking"
           element={
-            user ? (
-              <Coworking user={user} />
+            user ? <Coworking user={user} /> : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            user && (user.role === "admin" || user.role === "superadmin") ? (
+              <Admin user={user} />
             ) : (
               <Navigate to="/login" replace />
             )

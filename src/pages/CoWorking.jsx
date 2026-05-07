@@ -1,25 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Coworking.css";
 
-const initialSalles = [
-  { id: 1, nom: "Salle Sakura", capacite: 10, disponible: true },
-  { id: 2, nom: "Salle Horizon", capacite: 20, disponible: true },
-  { id: 3, nom: "Salle Zenith", capacite: 6, disponible: false },
-];
-
-const initialEmplacements = [
-  { id: 1, nom: "Zone A - Open Space", salleId: 1, places: 10 },
-  { id: 2, nom: "Zone B - Silence", salleId: 2, places: 8 },
-  { id: 3, nom: "Zone C - Créatif", salleId: 2, places: 6 },
-];
-
-const initialTables = [
-  { id: 1, nom: "Table 01", emplacementId: 1, statut: "Libre" },
-  { id: 2, nom: "Table 02", emplacementId: 1, statut: "Occupée" },
-  { id: 3, nom: "Table 03", emplacementId: 2, statut: "Libre" },
-  { id: 4, nom: "Table 04", emplacementId: 3, statut: "Réservée" },
-];
+const API = "http://localhost:5000/api";
+const getToken = () => localStorage.getItem("token");
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${getToken()}`,
+});
 
 const TABS = ["Salles", "Emplacements", "Tables", "Mes Réservations"];
 
@@ -39,102 +27,155 @@ function Modal({ title, onClose, children }) {
 
 function Coworking({ user }) {
   const navigate = useNavigate();
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const [activeTab, setActiveTab] = useState("Salles");
 
-  const [salles, setSalles] = useState(initialSalles);
-  const [emplacements, setEmplacements] = useState(initialEmplacements);
-  const [tables, setTables] = useState(initialTables);
+  const [salles, setSalles] = useState([]);
+  const [emplacements, setEmplacements] = useState([]);
+  const [tables, setTables] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [reservModal, setReservModal] = useState(null); // { type: 'salle'|'table', item }
+  const [reservModal, setReservModal] = useState(null);
   const [reservForm, setReservForm] = useState({ date: "", heure_debut: "", heure_fin: "" });
-  const [successMsg, setSuccessMsg] = useState("");
 
-  const nextId = (arr) => arr.length ? Math.max(...arr.map(i => i.id)) + 1 : 1;
+  const showSuccess = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(""), 3500); };
 
+  // ── Fetch data ─────────────────────────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [s, e, t, r] = await Promise.all([
+        fetch(`${API}/coworking/salles`, { headers: authHeaders() }).then(r => r.json()),
+        fetch(`${API}/coworking/emplacements`, { headers: authHeaders() }).then(r => r.json()),
+        fetch(`${API}/coworking/tables`, { headers: authHeaders() }).then(r => r.json()),
+        fetch(`${API}/coworking/reservations/me`, { headers: authHeaders() }).then(r => r.json()),
+      ]);
+      setSalles(s.salles || []);
+      setEmplacements(e.emplacements || []);
+      setTables(t.tables || []);
+      setReservations(r.reservations || []);
+    } catch (err) {
+      setError("Impossible de charger les données. Vérifiez que le serveur est démarré.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── CRUD helpers ───────────────────────────────────────────────────────────
   const openAdd = (type) => { setForm({}); setModal({ type, mode: "add" }); };
   const openEdit = (type, data) => { setForm({ ...data }); setModal({ type, mode: "edit", data }); };
   const closeModal = () => { setModal(null); setForm({}); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    let url, body;
+    const isEdit = modal.mode === "edit";
+
     if (modal.type === "salle") {
       if (!form.nom || !form.capacite) return;
-      if (modal.mode === "add") {
-        setSalles(s => [...s, { id: nextId(s), nom: form.nom, capacite: Number(form.capacite), disponible: form.disponible !== false }]);
-      } else {
-        setSalles(s => s.map(x => x.id === modal.data.id ? { ...x, ...form, capacite: Number(form.capacite) } : x));
-      }
+      url = isEdit ? `${API}/coworking/salles/${modal.data.id}` : `${API}/coworking/salles`;
+      body = { nom: form.nom, capacite: Number(form.capacite), disponible: form.disponible !== false };
     } else if (modal.type === "emplacement") {
-      if (!form.nom || !form.salleId || !form.places) return;
-      if (modal.mode === "add") {
-        setEmplacements(e => [...e, { id: nextId(e), nom: form.nom, salleId: Number(form.salleId), places: Number(form.places) }]);
-      } else {
-        setEmplacements(e => e.map(x => x.id === modal.data.id ? { ...x, ...form, salleId: Number(form.salleId), places: Number(form.places) } : x));
-      }
+      if (!form.nom || !form.salle_id || !form.places) return;
+      url = isEdit ? `${API}/coworking/emplacements/${modal.data.id}` : `${API}/coworking/emplacements`;
+      body = { nom: form.nom, salle_id: Number(form.salle_id), places: Number(form.places) };
     } else if (modal.type === "table") {
-      if (!form.nom || !form.emplacementId || !form.statut) return;
-      if (modal.mode === "add") {
-        setTables(t => [...t, { id: nextId(t), nom: form.nom, emplacementId: Number(form.emplacementId), statut: form.statut || "Libre" }]);
-      } else {
-        setTables(t => t.map(x => x.id === modal.data.id ? { ...x, ...form, emplacementId: Number(form.emplacementId) } : x));
-      }
+      if (!form.nom || !form.emplacement_id || !form.statut) return;
+      url = isEdit ? `${API}/coworking/tables/${modal.data.id}` : `${API}/coworking/tables`;
+      body = { nom: form.nom, emplacement_id: Number(form.emplacement_id), statut: form.statut || "Libre" };
     }
-    closeModal();
+
+    try {
+      await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      closeModal();
+      fetchAll();
+      showSuccess(isEdit ? "Modification enregistrée." : "Élément ajouté avec succès.");
+    } catch {
+      setError("Erreur lors de l'enregistrement.");
+    }
   };
 
-  const handleDelete = () => {
-    if (deleteConfirm.type === "salle") setSalles(s => s.filter(x => x.id !== deleteConfirm.id));
-    if (deleteConfirm.type === "emplacement") setEmplacements(e => e.filter(x => x.id !== deleteConfirm.id));
-    if (deleteConfirm.type === "table") setTables(t => t.filter(x => x.id !== deleteConfirm.id));
-    setDeleteConfirm(null);
+  const handleDelete = async () => {
+    const { type, id } = deleteConfirm;
+    const endpoints = { salle: "salles", emplacement: "emplacements", table: "tables" };
+    try {
+      await fetch(`${API}/coworking/${endpoints[type]}/${id}`, {
+        method: "DELETE", headers: authHeaders(),
+      });
+      setDeleteConfirm(null);
+      fetchAll();
+      showSuccess("Suppression effectuée.");
+    } catch {
+      setError("Erreur lors de la suppression.");
+    }
   };
 
+  // ── Réservations ───────────────────────────────────────────────────────────
   const openReserv = (type, item) => {
     setReservForm({ date: "", heure_debut: "", heure_fin: "" });
     setReservModal({ type, item });
   };
 
-  const handleReserv = () => {
+  const handleReserv = async () => {
     if (!reservForm.date || !reservForm.heure_debut || !reservForm.heure_fin) return;
-    const newR = {
-      id: nextId(reservations),
-      type: reservModal.type,
-      itemId: reservModal.item.id,
-      itemNom: reservModal.item.nom,
-      user: user?.name || user?.email || "Utilisateur",
-      date: reservForm.date,
-      heure_debut: reservForm.heure_debut,
-      heure_fin: reservForm.heure_fin,
-      statut: "Confirmée",
-    };
-    setReservations(r => [...r, newR]);
-    if (reservModal.type === "table") {
-      setTables(t => t.map(x => x.id === reservModal.item.id ? { ...x, statut: "Réservée" } : x));
+    try {
+      const res = await fetch(`${API}/coworking/reservations`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          type: reservModal.type,
+          item_id: reservModal.item.id,
+          item_nom: reservModal.item.nom,
+          date: reservForm.date,
+          heure_debut: reservForm.heure_debut,
+          heure_fin: reservForm.heure_fin,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        setError(d.message || "Erreur de réservation.");
+        return;
+      }
+      setReservModal(null);
+      fetchAll();
+      showSuccess(`Réservation de "${reservModal.item.nom}" confirmée !`);
+    } catch {
+      setError("Impossible de réserver. Réessayez.");
     }
-    if (reservModal.type === "salle") {
-      setSalles(s => s.map(x => x.id === reservModal.item.id ? { ...x, disponible: false } : x));
-    }
-    setReservModal(null);
-    setSuccessMsg(`Réservation de "${newR.itemNom}" confirmée !`);
-    setTimeout(() => setSuccessMsg(""), 3500);
   };
 
-  const annulerReservation = (id) => {
-    const r = reservations.find(x => x.id === id);
-    if (r) {
-      if (r.type === "table") setTables(t => t.map(x => x.id === r.itemId ? { ...x, statut: "Libre" } : x));
-      if (r.type === "salle") setSalles(s => s.map(x => x.id === r.itemId ? { ...x, disponible: true } : x));
+  const annulerReservation = async (id) => {
+    try {
+      await fetch(`${API}/coworking/reservations/${id}`, {
+        method: "DELETE", headers: authHeaders(),
+      });
+      fetchAll();
+      showSuccess("Réservation annulée.");
+    } catch {
+      setError("Erreur lors de l'annulation.");
     }
-    setReservations(r => r.filter(x => x.id !== id));
   };
 
   const getSalleName = (id) => salles.find(s => s.id === id)?.nom || "—";
   const getEmplacementName = (id) => emplacements.find(e => e.id === id)?.nom || "—";
 
-  const mesReservations = reservations.filter(r => r.user === (user?.name || user?.email || "Utilisateur"));
+  if (loading) return (
+    <div className="cw-page" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="bg-glow" /><div className="bg-glow2" />
+      <p style={{ color: "#fff", fontSize: "1.2rem" }}>⏳ Chargement...</p>
+    </div>
+  );
 
   return (
     <div className="cw-page">
@@ -150,7 +191,8 @@ function Coworking({ user }) {
           {user && (
             <div className="navbar-user">
               <span className="user-dot" />
-              {user.name || user.email || "Utilisateur"}
+              {user.name || user.email}
+              {isAdmin && <span style={{ marginLeft: 6, fontSize: "0.7rem", opacity: 0.7 }}>({user.role})</span>}
             </div>
           )}
           <button className="btn-back" onClick={() => navigate("/choose-services")}>
@@ -170,19 +212,18 @@ function Coworking({ user }) {
           <div className="cw-stat"><span>{salles.length}</span>Salles</div>
           <div className="cw-stat"><span>{emplacements.length}</span>Emplacements</div>
           <div className="cw-stat"><span>{tables.length}</span>Tables</div>
-          <div className="cw-stat"><span>{mesReservations.length}</span>Réservations</div>
+          <div className="cw-stat"><span>{reservations.length}</span>Réservations</div>
         </div>
       </div>
 
-      {successMsg && (
-        <div className="cw-success">{successMsg}</div>
-      )}
+      {error && <div className="cw-success" style={{ background: "rgba(239,68,68,0.15)", borderColor: "#ef4444" }}>{error} <button onClick={() => setError("")} style={{ marginLeft: 8, background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>✕</button></div>}
+      {successMsg && <div className="cw-success">{successMsg}</div>}
 
       <div className="cw-tabs">
         {TABS.map(t => (
           <button key={t} className={`cw-tab ${activeTab === t ? "active" : ""}`} onClick={() => setActiveTab(t)}>
-            {t}{t === "Mes Réservations" && mesReservations.length > 0 && (
-              <span className="cw-tab-badge">{mesReservations.length}</span>
+            {t}{t === "Mes Réservations" && reservations.length > 0 && (
+              <span className="cw-tab-badge">{reservations.length}</span>
             )}
           </button>
         ))}
@@ -195,7 +236,7 @@ function Coworking({ user }) {
           <>
             <div className="cw-toolbar">
               <h2 className="cw-section-title">Liste des salles</h2>
-              <button className="cw-btn-add" onClick={() => openAdd("salle")}>+ Ajouter</button>
+              {isAdmin && <button className="cw-btn-add" onClick={() => openAdd("salle")}>+ Ajouter</button>}
             </div>
             <div className="cw-grid">
               {salles.map((s, i) => (
@@ -208,15 +249,17 @@ function Coworking({ user }) {
                   </div>
                   <h3 className="cw-card-title">{s.nom}</h3>
                   <p className="cw-card-meta">Capacité : <strong>{s.capacite} personnes</strong></p>
-                  <div className="cw-card-actions">
-                    <button className="cw-btn-edit" onClick={() => openEdit("salle", s)}>✏ Modifier</button>
-                    <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "salle", id: s.id, nom: s.nom })}>🗑</button>
-                  </div>
-                  {s.disponible && (
+                  {isAdmin && (
+                    <div className="cw-card-actions">
+                      <button className="cw-btn-edit" onClick={() => openEdit("salle", { ...s, disponible: !!s.disponible })}>✏ Modifier</button>
+                      <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "salle", id: s.id, nom: s.nom })}>🗑</button>
+                    </div>
+                  )}
+                  {s.disponible ? (
                     <button className="cw-btn-reserv" onClick={() => openReserv("salle", s)}>
                       📅 Réserver cette salle
                     </button>
-                  )}
+                  ) : null}
                   <div className="cw-card-line" />
                 </div>
               ))}
@@ -229,21 +272,23 @@ function Coworking({ user }) {
           <>
             <div className="cw-toolbar">
               <h2 className="cw-section-title">Liste des emplacements</h2>
-              <button className="cw-btn-add" onClick={() => openAdd("emplacement")}>+ Ajouter</button>
+              {isAdmin && <button className="cw-btn-add" onClick={() => openAdd("emplacement")}>+ Ajouter</button>}
             </div>
             <div className="cw-grid">
               {emplacements.map((e, i) => (
                 <div className="cw-card" key={e.id} style={{ animationDelay: `${i * 0.07}s` }}>
                   <div className="cw-card-top">
                     <div className="cw-card-icon">📍</div>
-                    <span className="cw-badge badge--blue">{getSalleName(e.salleId)}</span>
+                    <span className="cw-badge badge--blue">{e.salle_nom || getSalleName(e.salle_id)}</span>
                   </div>
                   <h3 className="cw-card-title">{e.nom}</h3>
                   <p className="cw-card-meta">Places : <strong>{e.places}</strong></p>
-                  <div className="cw-card-actions">
-                    <button className="cw-btn-edit" onClick={() => openEdit("emplacement", e)}>✏ Modifier</button>
-                    <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "emplacement", id: e.id, nom: e.nom })}>🗑</button>
-                  </div>
+                  {isAdmin && (
+                    <div className="cw-card-actions">
+                      <button className="cw-btn-edit" onClick={() => openEdit("emplacement", e)}>✏ Modifier</button>
+                      <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "emplacement", id: e.id, nom: e.nom })}>🗑</button>
+                    </div>
+                  )}
                   <div className="cw-card-line" />
                 </div>
               ))}
@@ -256,7 +301,7 @@ function Coworking({ user }) {
           <>
             <div className="cw-toolbar">
               <h2 className="cw-section-title">Liste des tables</h2>
-              <button className="cw-btn-add" onClick={() => openAdd("table")}>+ Ajouter</button>
+              {isAdmin && <button className="cw-btn-add" onClick={() => openAdd("table")}>+ Ajouter</button>}
             </div>
             <div className="cw-grid">
               {tables.map((t, i) => (
@@ -268,11 +313,13 @@ function Coworking({ user }) {
                     </span>
                   </div>
                   <h3 className="cw-card-title">{t.nom}</h3>
-                  <p className="cw-card-meta">Emplacement : <strong>{getEmplacementName(t.emplacementId)}</strong></p>
-                  <div className="cw-card-actions">
-                    <button className="cw-btn-edit" onClick={() => openEdit("table", t)}>✏ Modifier</button>
-                    <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
-                  </div>
+                  <p className="cw-card-meta">Emplacement : <strong>{t.emplacement_nom || getEmplacementName(t.emplacement_id)}</strong></p>
+                  {isAdmin && (
+                    <div className="cw-card-actions">
+                      <button className="cw-btn-edit" onClick={() => openEdit("table", t)}>✏ Modifier</button>
+                      <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
+                    </div>
+                  )}
                   {t.statut === "Libre" && (
                     <button className="cw-btn-reserv" onClick={() => openReserv("table", t)}>
                       📅 Réserver cette table
@@ -291,7 +338,7 @@ function Coworking({ user }) {
             <div className="cw-toolbar">
               <h2 className="cw-section-title">Mes réservations</h2>
             </div>
-            {mesReservations.length === 0 ? (
+            {reservations.length === 0 ? (
               <div className="cw-empty">
                 <div className="cw-empty-icon">📭</div>
                 <p>Aucune réservation pour le moment.</p>
@@ -299,12 +346,12 @@ function Coworking({ user }) {
               </div>
             ) : (
               <div className="cw-reserv-list">
-                {mesReservations.map((r, i) => (
+                {reservations.map((r, i) => (
                   <div className="cw-reserv-card" key={r.id} style={{ animationDelay: `${i * 0.07}s` }}>
                     <div className="cw-reserv-left">
                       <div className="cw-reserv-icon">{r.type === "salle" ? "🏢" : "🪑"}</div>
                       <div>
-                        <h3 className="cw-reserv-title">{r.itemNom}</h3>
+                        <h3 className="cw-reserv-title">{r.item_nom}</h3>
                         <p className="cw-reserv-meta">
                           <span className={`cw-badge ${r.type === "salle" ? "badge--blue" : "badge--amber"}`}>
                             {r.type === "salle" ? "Salle" : "Table"}
@@ -355,7 +402,7 @@ function Coworking({ user }) {
             <label>Nom de l'emplacement</label>
             <input type="text" placeholder="Ex: Zone A - Open Space" value={form.nom || ""} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
             <label>Salle</label>
-            <select value={form.salleId || ""} onChange={e => setForm(f => ({ ...f, salleId: e.target.value }))}>
+            <select value={form.salle_id || ""} onChange={e => setForm(f => ({ ...f, salle_id: e.target.value }))}>
               <option value="">-- Choisir une salle --</option>
               {salles.map(s => <option key={s.id} value={s.id}>{s.nom}</option>)}
             </select>
@@ -376,7 +423,7 @@ function Coworking({ user }) {
             <label>Nom de la table</label>
             <input type="text" placeholder="Ex: Table 05" value={form.nom || ""} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
             <label>Emplacement</label>
-            <select value={form.emplacementId || ""} onChange={e => setForm(f => ({ ...f, emplacementId: e.target.value }))}>
+            <select value={form.emplacement_id || ""} onChange={e => setForm(f => ({ ...f, emplacement_id: e.target.value }))}>
               <option value="">-- Choisir un emplacement --</option>
               {emplacements.map(em => <option key={em.id} value={em.id}>{em.nom}</option>)}
             </select>
@@ -396,33 +443,20 @@ function Coworking({ user }) {
 
       {/* ── MODAL RÉSERVATION ── */}
       {reservModal && (
-        <Modal
-          title={`Réserver — ${reservModal.item.nom}`}
-          onClose={() => setReservModal(null)}
-        >
+        <Modal title={`Réserver — ${reservModal.item.nom}`} onClose={() => setReservModal(null)}>
           <div className="cw-form">
             <div className="cw-reserv-type-badge">
               {reservModal.type === "salle" ? "🏢 Salle" : "🪑 Table"}
             </div>
             <label>Date</label>
-            <input
-              type="date"
-              value={reservForm.date}
-              min={new Date().toISOString().split("T")[0]}
-              onChange={e => setReservForm(f => ({ ...f, date: e.target.value }))}
-            />
+            <input type="date" value={reservForm.date} min={new Date().toISOString().split("T")[0]}
+              onChange={e => setReservForm(f => ({ ...f, date: e.target.value }))} />
             <label>Heure de début</label>
-            <input
-              type="time"
-              value={reservForm.heure_debut}
-              onChange={e => setReservForm(f => ({ ...f, heure_debut: e.target.value }))}
-            />
+            <input type="time" value={reservForm.heure_debut}
+              onChange={e => setReservForm(f => ({ ...f, heure_debut: e.target.value }))} />
             <label>Heure de fin</label>
-            <input
-              type="time"
-              value={reservForm.heure_fin}
-              onChange={e => setReservForm(f => ({ ...f, heure_fin: e.target.value }))}
-            />
+            <input type="time" value={reservForm.heure_fin}
+              onChange={e => setReservForm(f => ({ ...f, heure_fin: e.target.value }))} />
             <div className="cw-form-actions">
               <button className="cw-btn-cancel" onClick={() => setReservModal(null)}>Annuler</button>
               <button className="cw-btn-save" onClick={handleReserv}>Confirmer</button>

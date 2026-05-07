@@ -6,6 +6,7 @@ import ChooseServices from "./pages/ChooseServices";
 import Formation from "./pages/Formation";
 import FormationDetail from "./pages/FormationDetail";
 import Coworking from "./pages/Coworking";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -18,9 +19,12 @@ function App() {
       localStorage.setItem("user", JSON.stringify(u));
     } else {
       localStorage.removeItem("user");
+      localStorage.removeItem("token");
     }
     setUser(u);
   };
+
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   return (
     <BrowserRouter>
@@ -28,46 +32,28 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login setUser={handleSetUser} />} />
         <Route path="/register" element={<Register setUser={handleSetUser} />} />
-        <Route
-          path="/choose-services"
-          element={
-            user ? (
-              <ChooseServices user={user} setUser={handleSetUser} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/formation"
-          element={
-            user ? (
-              <Formation user={user} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/formation/:id"
-          element={
-            user ? (
-              <FormationDetail user={user} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/coworking"
-          element={
-            user ? (
-              <Coworking user={user} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
+
+        <Route path="/choose-services" element={
+          user ? <ChooseServices user={user} setUser={handleSetUser} /> : <Navigate to="/login" replace />
+        } />
+
+        <Route path="/formation" element={
+          user ? <Formation user={user} /> : <Navigate to="/login" replace />
+        } />
+        <Route path="/formation/:id" element={
+          user ? <FormationDetail user={user} /> : <Navigate to="/login" replace />
+        } />
+
+        <Route path="/coworking" element={
+          user ? <Coworking user={user} /> : <Navigate to="/login" replace />
+        } />
+
+        {/* Route admin/superadmin */}
+        <Route path="/admin" element={
+          isAdmin ? <AdminDashboard user={user} setUser={handleSetUser} /> : <Navigate to="/choose-services" replace />
+        } />
+
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );

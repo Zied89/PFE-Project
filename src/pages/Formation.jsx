@@ -1,105 +1,152 @@
-import React from "react";
+
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Formation.css";
+import { FaShoppingCart } from "react-icons/fa";
 
-const categories = [
-  {
-    id: 1,
-    icon: "💻",
-    title: "Développement Web",
-    desc: "HTML, CSS, JavaScript, React, Node.js et bien plus. Devenez développeur full-stack opérationnel.",
-    count: 12,
-    tag: "Tech",
-    accent: "gold",
-  },
-  {
-    id: 2,
-    icon: "🎨",
-    title: "Design Graphique",
-    desc: "Figma, Adobe Suite, UI/UX, typographie et identité visuelle. Créez des interfaces mémorables.",
-    count: 8,
-    tag: "Créatif",
-    accent: "teal",
-  },
-  {
-    id: 3,
-    icon: "📈",
-    title: "Marketing Digital",
-    desc: "SEO, réseaux sociaux, publicité en ligne et stratégie de contenu. Développez votre audience.",
-    count: 9,
-    tag: "Business",
-    accent: "gold",
-  },
-  {
-    id: 4,
-    icon: "🤖",
-    title: "Intelligence Artificielle",
-    desc: "Machine learning, deep learning, Python, LLMs et pipelines de données. Maîtrisez l'IA moderne.",
-    count: 6,
-    tag: "IA & Data",
-    accent: "teal",
-  },
-];
+const API = "http://localhost:5000/api";
+
+// 🔐 Headers sécurisés
+const authHeaders = () => {
+  const token = localStorage.getItem("token");
+  return {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
 
 const filters = ["Toutes", "Tech", "Créatif", "Business", "IA & Data"];
 
 function Formation({ user }) {
   const navigate = useNavigate();
-  const [activeFilter, setActiveFilter] = React.useState("Toutes");
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
+  const [activeFilter, setActiveFilter] = useState("Toutes");
+  const [formations, setFormations] = useState([]);
+  const [inscriptions, setInscriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  // 🔄 FETCH DATA
+  const fetchData = async () => {
+    setLoading(true);
+    setErrorMsg("");
+
+    try {
+      const fRes = await fetch(`${API}/formations`, {
+        headers: authHeaders(),
+      });
+
+      if (!fRes.ok) throw new Error("Erreur API formations");
+
+      const fData = await fRes.json();
+
+      let iData = { inscriptions: [] };
+
+      try {
+        const iRes = await fetch(`${API}/formations/inscriptions/me`, {
+          headers: authHeaders(),
+        });
+
+        if (iRes.ok) {
+          iData = await iRes.json();
+        }
+      } catch {
+        console.log("Pas d'inscriptions (non connecté)");
+      }
+
+      setFormations(fData.formations || []);
+      setInscriptions(
+        (iData.inscriptions || []).map((i) => i.formation_id)
+      );
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("❌ Impossible de contacter le serveur.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // 🎯 FILTRE
   const filtered =
     activeFilter === "Toutes"
-      ? categories
-      : categories.filter((c) => c.tag === activeFilter);
+      ? formations
+      : formations.filter((f) => f.tag === activeFilter);
+
+  // 🛒 PANIER SIMPLE
+  const [cart, setCart] = useState([]);
+
+  const toggleCart = (formation) => {
+    setCart((prev) => {
+      const exists = prev.find((f) => f.id === formation.id);
+      if (exists) return prev.filter((f) => f.id !== formation.id);
+      return [...prev, formation];
+    });
+  };
+
+  // 💰 TOTAL
+  const total = cart.reduce((acc, f) => acc + Number(f.prix || 0), 0);
+
+  // 💳 CHECKOUT
+  const handleCheckout = async () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/formations/inscrire-multiple`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          formationIds: cart.map((f) => f.id),
+        }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      setSuccessMsg("✅ Inscription réussie !");
+      setCart([]);
+      fetchData();
+    } catch {
+      setErrorMsg("❌ Erreur lors de l'inscription.");
+    }
+  };
+
+  // ⏳ LOADING
+  if (loading) {
+    return (
+      <div className="formation-page">
+        <p style={{ textAlign: "center" }}>Chargement...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="formation-page">
-      <div className="bg-glow" />
-      <div className="bg-glow2" />
+      {/* ALERTS */}
+      {errorMsg && <p style={{ color: "red" }}>{errorMsg}</p>}
+      {successMsg && <p style={{ color: "green" }}>{successMsg}</p>}
 
-      {/* Navbar */}
-      <nav className="navbar">
-        <div className="navbar-brand">
-          <div className="brand-icon">⚡</div>
-          <span className="brand-name">TZ Prime Solutions</span>
-        </div>
-        <div className="navbar-links">
-          {user && (
-            <div className="navbar-user">
-              <span className="user-dot" />
-              {user.name || user.email || "Utilisateur"}
-            </div>
-          )}
-          <button className="btn-back" onClick={() => navigate("/")}>
-            <span className="back-arrow">←</span> Retour
-          </button>
-        </div>
-      </nav>
-
-      {/* Hero */}
+      {/* HERO */}
       <div className="hero">
-        <div className="hero-left">
-          <p className="hero-eyebrow">Catalogue</p>
-          <h1 className="hero-title">
-            Formations<br />Professionnelles
-          </h1>
-          <p className="hero-subtitle">
-            Choisissez une catégorie pour explorer les programmes
-          </p>
-          <div className="hero-divider" />
-        </div>
-        <div className="hero-count">
-          <span>{filtered.length}</span>{" "}
-          catégorie{filtered.length > 1 ? "s" : ""} disponible{filtered.length > 1 ? "s" : ""}
-        </div>
+        <h1>Formations</h1>
+        <p>{filtered.length} disponibles</p>
       </div>
 
-      {/* Filter bar */}
-      <div className="filter-bar">
+      {/* FILTERS */}
+      <div className="filters">
         {filters.map((f) => (
           <button
             key={f}
-            className={`filter-pill ${activeFilter === f ? "active" : ""}`}
+            className={`filter-btn ${
+              activeFilter === f ? "filter-btn--active" : ""
+            }`}
             onClick={() => setActiveFilter(f)}
           >
             {f}
@@ -107,32 +154,57 @@ function Formation({ user }) {
         ))}
       </div>
 
-      {/* Categories grid */}
+      {/* GRID */}
       <div className="categories-grid">
-        {filtered.map((cat, index) => (
-          <div
-            key={cat.id}
-            className={`cat-card cat-card--${cat.accent}`}
-            style={{ animationDelay: `${index * 0.07}s` }}
-            onClick={() => navigate(`/formation/${cat.id}`)}
-          >
-            <div className="cat-top">
-              <div className="cat-icon">{cat.icon}</div>
-              <span className="cat-index">0{index + 1}</span>
-            </div>
-            <h2 className="cat-title">{cat.title}</h2>
-            <p className="cat-desc">{cat.desc}</p>
-            <div className="cat-footer">
-              <span className="cat-badge">{cat.count} programmes</span>
-              <div className="cat-cta">
-                <span>Explorer</span>
-                <div className="cta-circle">→</div>
+        {filtered.map((f) => {
+          const isInscrit = inscriptions.includes(f.id);
+          const inCart = cart.some((c) => c.id === f.id);
+
+          return (
+            <div key={f.id} className="cat-card">
+              <h2>{f.titre}</h2>
+              <p>{f.description}</p>
+
+              <strong>{f.prix} TND</strong>
+
+              <div className="cat-footer">
+                {!isAdmin && (
+                  <button
+                    onClick={() => toggleCart(f)}
+                    disabled={isInscrit}
+                  >
+                    {isInscrit
+                      ? "✓ Inscrit"
+                      : inCart
+                      ? "✓ Au panier"
+                      : "+ Panier"}
+                  </button>
+                )}
+
+                <button
+                  onClick={() => navigate(`/formation/${f.id}`)}
+                >
+                  Voir →
+                </button>
               </div>
             </div>
-            <div className="cat-line" />
-          </div>
-        ))}
+          );
+        })}
       </div>
+
+      {/* PANIER */}
+      {!isAdmin && (
+       
+        <div style={{ marginTop: "2rem", textAlign: "center" }}>
+          <FaShoppingCart />
+          <h3>Panier ({cart.length})</h3>
+          <p>Total: {total} TND</p>
+
+          <button class="buttoninscription" onClick={handleCheckout}>
+            Confirmer inscription
+          </button>
+        </div>
+      )}
     </div>
   );
 }
