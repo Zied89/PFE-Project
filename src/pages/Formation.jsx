@@ -15,7 +15,7 @@ const authHeaders = () => {
   };
 };
 
-const filters = ["Toutes", "Tech", "Créatif", "Business", "IA & Data","Business & Entrepreneuriat"];
+const filters = ["Toutes", "Tech", "Créatif", "Business", "IA & Data", "Business & Entrepreneuriat"];
 
 function Formation({ user }) {
   const navigate = useNavigate();
@@ -132,12 +132,12 @@ function Formation({ user }) {
       {/* ALERTS */}
       {errorMsg && <p style={{ color: "red" }}>{errorMsg}</p>}
       {successMsg && <p style={{ color: "green" }}>{successMsg}</p>}
-  <nav className="navbar">
+      <nav className="navbar">
         <div className="navbar-brand">
           <div className="brand-icon">⚡</div>
           <span className="brand-name">TZ Prime Solutions</span>
         </div>
-        </nav>
+      </nav>
       {/* HERO */}
       <div className="hero">
         <h1>Formations</h1>
@@ -149,9 +149,8 @@ function Formation({ user }) {
         {filters.map((f) => (
           <button
             key={f}
-            className={`filter-btn ${
-              activeFilter === f ? "filter-btn--active" : ""
-            }`}
+            className={`filter-btn ${activeFilter === f ? "filter-btn--active" : ""
+              }`}
             onClick={() => setActiveFilter(f)}
           >
             {f}
@@ -181,8 +180,8 @@ function Formation({ user }) {
                     {isInscrit
                       ? "✓ Inscrit"
                       : inCart
-                      ? "✓ Au panier"
-                      : "+ Panier"}
+                        ? "✓ Au panier"
+                        : "+ Panier"}
                   </button>
                 )}
 
@@ -199,7 +198,7 @@ function Formation({ user }) {
 
       {/* PANIER */}
       {!isAdmin && (
-       
+
         <div style={{ marginTop: "2rem", textAlign: "center" }}>
           <FaShoppingCart />
           <h3>Panier ({cart.length})</h3>

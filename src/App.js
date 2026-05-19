@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "./pages/Login";
@@ -7,16 +7,23 @@ import ChooseServices from "./pages/ChooseServices";
 import Formation from "./pages/Formation";
 import FormationDetail from "./pages/FormationDetail";
 import Coworking from "./pages/Coworking";
-import Admin from "./pages/AdminDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Charge l'utilisateur depuis localStorage au démarrage
   useEffect(() => {
-    const saved = localStorage.getItem("user");
-    setUser(saved ? JSON.parse(saved) : null);
-    setLoading(false);
+    try {
+      const saved = localStorage.getItem("user");
+      setUser(saved ? JSON.parse(saved) : null);
+    } catch {
+      localStorage.removeItem("user");
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const handleSetUser = (u) => {
@@ -24,60 +31,110 @@ function App() {
       localStorage.setItem("user", JSON.stringify(u));
     } else {
       localStorage.removeItem("user");
+      localStorage.removeItem("token");
     }
     setUser(u);
   };
 
+  // Attendre la lecture du localStorage avant de rendre quoi que ce soit
   if (loading) return null;
+
+  const isAuth = Boolean(user);
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+
+  // Guard : utilisateur connecté requis
+  const RequireAuth = ({ children }) =>
+    isAuth ? children : <Navigate to="/login" replace />;
+
+  // Guard : rôle admin ou superadmin requis
+  const RequireAdmin = ({ children }) => {
+    if (!isAuth) return <Navigate to="/login" replace />;
+    if (!isAdmin) return <Navigate to="/choose-services" replace />;
+    return children;
+  };
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login setUser={handleSetUser} />} />
-        <Route path="/register" element={<Register setUser={handleSetUser} />} />
+
+        {/* Racine → redirige selon l'état de connexion */}
+        <Route
+          path="/"
+          element={
+            isAuth
+              ? <Navigate to="/choose-services" replace />
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Auth : si déjà connecté, on redirige directement */}
+        <Route
+          path="/login"
+          element={
+            isAuth
+              ? <Navigate to="/choose-services" replace />
+              : <Login setUser={handleSetUser} />
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            isAuth
+              ? <Navigate to="/choose-services" replace />
+              : <Register setUser={handleSetUser} />
+          }
+        />
+
+        {/* Pages protégées */}
         <Route
           path="/choose-services"
           element={
-            user ? (
+            <RequireAuth>
               <ChooseServices user={user} setUser={handleSetUser} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            </RequireAuth>
           }
         />
+
         <Route
           path="/formation"
           element={
-            user ? <Formation user={user} /> : <Navigate to="/login" replace />
+            <RequireAuth>
+              <Formation user={user} />
+            </RequireAuth>
           }
         />
+
         <Route
           path="/formation/:id"
           element={
-            user ? (
+            <RequireAuth>
               <FormationDetail user={user} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            </RequireAuth>
           }
         />
+
         <Route
           path="/coworking"
           element={
-            user ? <Coworking user={user} /> : <Navigate to="/login" replace />
+            <RequireAuth>
+              <Coworking user={user} />
+            </RequireAuth>
           }
         />
+
+        {/* Dashboard admin — réservé admin/superadmin */}
         <Route
           path="/admin"
           element={
-            user && (user.role === "admin" || user.role === "superadmin") ? (
-              <Admin user={user} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            <RequireAdmin>
+              <AdminDashboard user={user} setUser={handleSetUser} />
+            </RequireAdmin>
           }
         />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+
       </Routes>
     </BrowserRouter>
   );

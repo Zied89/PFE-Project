@@ -26,12 +26,15 @@ const DUMMY_HASH = "$2a$12$dummyhashfortimingpreventionXXXXXXXXXXXXXXXXXXXXXXXXX
 // ─── Seed Super Admin au démarrage ────────────────────────────────────────
 (async () => {
   try {
-    const existing = db.prepare("SELECT id FROM users WHERE role = 'superadmin'").get();
-    if (!existing) {
+    const { rows } = await db.query("SELECT id FROM users WHERE role = 'superadmin'");
+    if (!rows.length) {
       const hashed = await bcrypt.hash("Admin@1234", 12);
-      db.prepare(
-        "INSERT OR IGNORE INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
-      ).run("Super Admin", "superadmin@tzprime.com", hashed, "superadmin");
+      await db.query(
+        `INSERT INTO users (name, email, password, role)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (email) DO NOTHING`,
+        ["Super Admin", "superadmin@tzprime.com", hashed, "superadmin"]
+      );
       console.log("✅ Super Admin créé : superadmin@tzprime.com / Admin@1234");
     }
   } catch (err) {
@@ -55,19 +58,27 @@ router.post("/register", authLimiter, async (req, res) => {
   const normalizedEmail = email.toLowerCase().trim();
   const normalizedName = name.trim();
 
-  const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(normalizedEmail);
-  if (existing) return res.status(409).json({ message: "Cet email est déjà utilisé." });
-
-  const hashedPassword = await bcrypt.hash(password, 12);
-
   try {
-    const stmt = db.prepare(
-      "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
+    const existing = await db.query(
+      "SELECT id FROM users WHERE email = $1",
+      [normalizedEmail]
     );
-    const result = stmt.run(normalizedName, normalizedEmail, hashedPassword, "user");
+    if (existing.rows.length)
+      return res.status(409).json({ message: "Cet email est déjà utilisé." });
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const { rows } = await db.query(
+      `INSERT INTO users (name, email, password, role)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [normalizedName, normalizedEmail, hashedPassword, "user"]
+    );
+
+    const newId = rows[0].id;
 
     const token = jwt.sign(
-      { id: result.lastInsertRowid, email: normalizedEmail, name: normalizedName, role: "user" },
+      { id: newId, email: normalizedEmail, name: normalizedName, role: "user" },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
@@ -75,10 +86,11 @@ router.post("/register", authLimiter, async (req, res) => {
     return res.status(201).json({
       message: "Compte créé avec succès.",
       token,
-      user: { id: result.lastInsertRowid, name: normalizedName, email: normalizedEmail, role: "user" },
+      user: { id: newId, name: normalizedName, email: normalizedEmail, role: "user" },
     });
   } catch (err) {
-    if (err.code === "SQLITE_CONSTRAINT_UNIQUE")
+    // Contrainte d'unicité PostgreSQL
+    if (err.code === "23505")
       return res.status(409).json({ message: "Cet email est déjà utilisé." });
     console.error("[register]", err);
     return res.status(500).json({ message: "Erreur serveur. Veuillez réessayer." });
@@ -95,7 +107,11 @@ router.post("/login", authLimiter, async (req, res) => {
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail);
+    const { rows } = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      [normalizedEmail]
+    );
+    const user = rows[0] || null;
 
     const hashToCompare = user ? user.password : DUMMY_HASH;
     const isMatch = await bcrypt.compare(password, hashToCompare);
@@ -121,15 +137,16 @@ router.post("/login", authLimiter, async (req, res) => {
 });
 
 // ─── GET /api/auth/me (route protégée) ────────────────────────────────────
-router.get("/me", authMiddleware, (req, res) => {
+router.get("/me", authMiddleware, async (req, res) => {
   try {
-    const user = db
-      .prepare("SELECT id, name, email, role, created_at FROM users WHERE id = ?")
-      .get(req.user.id);
+    const { rows } = await db.query(
+      "SELECT id, name, email, role, created_at FROM users WHERE id = $1",
+      [req.user.id]
+    );
 
-    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    if (!rows.length) return res.status(404).json({ message: "Utilisateur introuvable." });
 
-    return res.json({ user });
+    return res.json({ user: rows[0] });
   } catch (err) {
     console.error("[me]", err);
     return res.status(500).json({ message: "Erreur serveur. Veuillez réessayer." });
