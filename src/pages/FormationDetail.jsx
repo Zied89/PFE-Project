@@ -8,9 +8,9 @@ const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem("token")}`,
 });
 
-// Programmes statiques par catégorie (enrichissement local)
+// Programmes statiques par catégorie — clés = valeurs exactes en base
 const coursesByCategory = {
-  "Développement Web": [
+  "Tech": [
     { id: 1, title: "HTML & CSS Fondamentaux", duration: "4 semaines", level: "Débutant", students: 342, prix: 150 },
     { id: 2, title: "JavaScript Moderne (ES6+)", duration: "6 semaines", level: "Intermédiaire", students: 218, prix: 220 },
     { id: 3, title: "React & Ecosystem", duration: "8 semaines", level: "Intermédiaire", students: 195, prix: 290 },
@@ -18,21 +18,21 @@ const coursesByCategory = {
     { id: 5, title: "Bases de données SQL & NoSQL", duration: "4 semaines", level: "Intermédiaire", students: 134, prix: 200 },
     { id: 6, title: "Déploiement & DevOps", duration: "3 semaines", level: "Avancé", students: 98, prix: 320 },
   ],
-  "Design Graphique": [
+  "Créatif": [
     { id: 1, title: "Figma pour débutants", duration: "3 semaines", level: "Débutant", students: 276, prix: 130 },
     { id: 2, title: "UI/UX Design Thinking", duration: "5 semaines", level: "Intermédiaire", students: 188, prix: 250 },
     { id: 3, title: "Adobe Illustrator", duration: "4 semaines", level: "Intermédiaire", students: 154, prix: 210 },
     { id: 4, title: "Adobe Photoshop", duration: "4 semaines", level: "Intermédiaire", students: 210, prix: 210 },
     { id: 5, title: "Identité visuelle & Branding", duration: "6 semaines", level: "Avancé", students: 112, prix: 350 },
   ],
-  "Marketing Digital": [
+  "Business": [
     { id: 1, title: "SEO & Référencement naturel", duration: "4 semaines", level: "Débutant", students: 305, prix: 160 },
     { id: 2, title: "Google Ads & Meta Ads", duration: "5 semaines", level: "Intermédiaire", students: 229, prix: 270 },
     { id: 3, title: "Community Management", duration: "3 semaines", level: "Débutant", students: 198, prix: 120 },
     { id: 4, title: "Email Marketing & Automation", duration: "4 semaines", level: "Intermédiaire", students: 143, prix: 190 },
     { id: 5, title: "Analytics & Data Marketing", duration: "5 semaines", level: "Avancé", students: 121, prix: 300 },
   ],
-  "Intelligence Artificielle": [
+  "IA & Data": [
     { id: 1, title: "Python pour la Data Science", duration: "5 semaines", level: "Débutant", students: 289, prix: 180 },
     { id: 2, title: "Machine Learning avec Scikit-learn", duration: "6 semaines", level: "Intermédiaire", students: 174, prix: 310 },
     { id: 3, title: "Deep Learning & Réseaux de neurones", duration: "8 semaines", level: "Avancé", students: 132, prix: 420 },
@@ -45,6 +45,20 @@ const coursesByCategory = {
     { id: 3, title: "Stratégies de croissance", duration: "5 semaines", level: "Intermédiaire", students: 198, prix: 290 },
     { id: 4, title: "Pitching & Levée de fonds", duration: "4 semaines", level: "Intermédiaire", students: 142, prix: 240 },
     { id: 5, title: "Gestion financière pour startups", duration: "6 semaines", level: "Avancé", students: 97, prix: 360 },
+  ],
+  "Cybersécurité": [
+    { id: 1, title: "Fondamentaux de la cybersécurité", duration: "4 semaines", level: "Débutant", students: 265, prix: 190 },
+    { id: 2, title: "Ethical Hacking & Pentesting", duration: "6 semaines", level: "Intermédiaire", students: 143, prix: 320 },
+    { id: 3, title: "Sécurité des applications web", duration: "5 semaines", level: "Intermédiaire", students: 167, prix: 280 },
+    { id: 4, title: "Cryptographie & Sécurité des données", duration: "6 semaines", level: "Avancé", students: 88, prix: 400 },
+    { id: 5, title: "Gestion des incidents & Forensics", duration: "4 semaines", level: "Avancé", students: 76, prix: 350 },
+  ],
+  "Motion Design & Vidéo": [
+    { id: 1, title: "After Effects pour débutants", duration: "4 semaines", level: "Débutant", students: 231, prix: 150 },
+    { id: 2, title: "Cinema 4D & Modélisation 3D", duration: "6 semaines", level: "Intermédiaire", students: 112, prix: 300 },
+    { id: 3, title: "Techniques avancées d'animation", duration: "5 semaines", level: "Avancé", students: 89, prix: 380 },
+    { id: 4, title: "Montage vidéo avec Premiere Pro", duration: "4 semaines", level: "Intermédiaire", students: 154, prix: 220 },
+    { id: 5, title: "Effets spéciaux & Compositing", duration: "6 semaines", level: "Avancé", students: 67, prix: 400 },
   ],
 };
 
@@ -230,6 +244,7 @@ function FormationDetail({ user }) {
     </div>
   );
 
+  // Recherche par categorie (correspondance exacte avec la DB)
   const courses = coursesByCategory[formation.categorie] || [];
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
@@ -328,7 +343,6 @@ function FormationDetail({ user }) {
                     ? "rgba(74,222,128,0.15)"
                     : "linear-gradient(135deg,#d4a843,#f0c060)",
                   color: isInscrit ? "#4ade80" : "#1a1206",
-                 
                 }}>
                 {isInscrit ? "✓ Inscrit — Se désinscrire" : "S'inscrire maintenant"}
               </button>
@@ -356,7 +370,7 @@ function FormationDetail({ user }) {
       <div className="fd-list">
         {courses.length === 0 ? (
           <div style={{ textAlign: "center", padding: "3rem", opacity: 0.5 }}>
-            <p>Aucun programme disponible pour cette catégorie.</p>
+            <p>Aucun programme disponible pour cette catégorie : <strong>{formation.categorie}</strong></p>
           </div>
         ) : (
           courses.map((course, index) => {
