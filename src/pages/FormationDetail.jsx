@@ -39,6 +39,13 @@ const coursesByCategory = {
     { id: 4, title: "LLMs & Prompt Engineering", duration: "4 semaines", level: "Intermédiaire", students: 201, prix: 260 },
     { id: 5, title: "Pipelines de données avec Airflow", duration: "5 semaines", level: "Avancé", students: 89, prix: 380 },
   ],
+  "Business & Entrepreneuriat": [
+    { id: 1, title: "Lean Startup & MVP", duration: "4 semaines", level: "Débutant", students: 312, prix: 170 },
+    { id: 2, title: "Business Model Canvas", duration: "3 semaines", level: "Débutant", students: 256, prix: 140 },
+    { id: 3, title: "Stratégies de croissance", duration: "5 semaines", level: "Intermédiaire", students: 198, prix: 290 },
+    { id: 4, title: "Pitching & Levée de fonds", duration: "4 semaines", level: "Intermédiaire", students: 142, prix: 240 },
+    { id: 5, title: "Gestion financière pour startups", duration: "6 semaines", level: "Avancé", students: 97, prix: 360 },
+  ],
 };
 
 const levelColors = {
