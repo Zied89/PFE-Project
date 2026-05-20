@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import "./AdminDashboard.css";
 
-const API = "http://localhost:3000/api";
+// ✅ Port corrigé : 5000
+const API = "http://localhost:5000/api";
 const authHeaders = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -67,16 +68,16 @@ function AdminDashboard({ user, setUser }) {
   };
 
   /* ── Fetch all data ── */
+  // ✅ Routes corrigées : /coworking/reservations et /formations/inscriptions/all
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       const [uRes, rRes, iRes] = await Promise.all([
         fetch(`${API}/admin/users`, { headers: authHeaders() }),
-        fetch(`${API}/admin/reservations`, { headers: authHeaders() }),
-        fetch(`${API}/admin/inscriptions`, { headers: authHeaders() }),
+        fetch(`${API}/coworking/reservations`, { headers: authHeaders() }),
+        fetch(`${API}/formations/inscriptions/all`, { headers: authHeaders() }),
       ]);
 
-      // Graceful fallback: if endpoint doesn't exist yet, use empty array
       const uData = uRes.ok ? await uRes.json() : { users: [] };
       const rData = rRes.ok ? await rRes.json() : { reservations: [] };
       const iData = iRes.ok ? await iRes.json() : { inscriptions: [] };
@@ -126,25 +127,51 @@ function AdminDashboard({ user, setUser }) {
 
   const closeModal = () => { setModal(null); setForm({}); };
 
+  // ✅ Création : POST /auth/register | Modification : PUT /admin/users/:id/role
   const handleSave = async () => {
     if (!form.name || !form.email) return showToast("Nom et email requis.", "error");
     const isEdit = modal.mode === "edit";
-    const url = isEdit
-      ? `${API}/admin/users/${modal.data.id}`
-      : `${API}/admin/users`;
-    const body = { ...form };
-    if (isEdit && !body.password) delete body.password;
 
     try {
-      const res = await fetch(url, {
-        method: isEdit ? "PUT" : "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const d = await res.json();
-        return showToast(d.message || "Erreur serveur.", "error");
+      if (isEdit) {
+        // Changer le rôle si superadmin
+        if (isSuperAdmin && form.role !== modal.data.role) {
+          const roleRes = await fetch(`${API}/admin/users/${modal.data.id}/role`, {
+            method: "PUT",
+            headers: authHeaders(),
+            body: JSON.stringify({ role: form.role }),
+          });
+          if (!roleRes.ok) {
+            const d = await roleRes.json();
+            return showToast(d.message || "Erreur changement de rôle.", "error");
+          }
+        }
+      } else {
+        // Créer un utilisateur via /auth/register
+        if (!form.password || form.password.length < 6)
+          return showToast("Mot de passe de 6 caractères minimum.", "error");
+        const res = await fetch(`${API}/auth/register`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ name: form.name, email: form.email, password: form.password }),
+        });
+        if (!res.ok) {
+          const d = await res.json();
+          return showToast(d.message || "Erreur serveur.", "error");
+        }
+        // Si superadmin veut donner un rôle différent de "user"
+        if (isSuperAdmin && form.role !== "user") {
+          const regData = await res.json().catch(() => null);
+          if (regData?.user?.id) {
+            await fetch(`${API}/admin/users/${regData.user.id}/role`, {
+              method: "PUT",
+              headers: authHeaders(),
+              body: JSON.stringify({ role: form.role }),
+            });
+          }
+        }
       }
+
       closeModal();
       fetchAll();
       showToast(isEdit ? "Utilisateur mis à jour." : "Utilisateur créé avec succès.");
@@ -168,28 +195,24 @@ function AdminDashboard({ user, setUser }) {
     }
   };
 
+  // ✅ Statut : non supporté côté DB pour l'instant, affichage seulement
   const changeStatut = async (u, newStatut) => {
-    try {
-      await fetch(`${API}/admin/users/${u.id}`, {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({ ...u, statut: newStatut }),
-      });
-      fetchAll();
-      showToast(`Statut de ${u.name} → ${newStatut}.`);
-    } catch {
-      showToast("Erreur lors du changement de statut.", "error");
-    }
+    showToast(`Fonctionnalité statut à venir pour ${u.name}.`, "error");
   };
 
+  // ✅ Changement de rôle via /admin/users/:id/role
   const changeRole = async (u, newRole) => {
     if (!isSuperAdmin) return showToast("Seul le superadmin peut changer les rôles.", "error");
     try {
-      await fetch(`${API}/admin/users/${u.id}`, {
+      const res = await fetch(`${API}/admin/users/${u.id}/role`, {
         method: "PUT",
         headers: authHeaders(),
-        body: JSON.stringify({ ...u, role: newRole }),
+        body: JSON.stringify({ role: newRole }),
       });
+      if (!res.ok) {
+        const d = await res.json();
+        return showToast(d.message || "Erreur.", "error");
+      }
       fetchAll();
       showToast(`Rôle de ${u.name} → ${newRole}.`);
     } catch {
@@ -199,10 +222,11 @@ function AdminDashboard({ user, setUser }) {
 
   const cancelReservation = async (id) => {
     try {
-      await fetch(`${API}/coworking/reservations/${id}`, {
+      const res = await fetch(`${API}/coworking/reservations/${id}`, {
         method: "DELETE",
         headers: authHeaders(),
       });
+      if (!res.ok) return showToast("Erreur lors de l'annulation.", "error");
       fetchAll();
       showToast("Réservation annulée.");
     } catch {
@@ -337,7 +361,6 @@ function AdminDashboard({ user, setUser }) {
             <div className="adm-toolbar">
               <h2 className="adm-section-title">Gestion des utilisateurs</h2>
               <div className="adm-toolbar-right">
-                {/* Search */}
                 <div className="adm-search">
                   <span className="adm-search-icon">🔍</span>
                   <input
@@ -347,7 +370,6 @@ function AdminDashboard({ user, setUser }) {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                {/* Role filter */}
                 <select
                   className="adm-filter-select"
                   value={roleFilter}
@@ -358,7 +380,6 @@ function AdminDashboard({ user, setUser }) {
                   <option value="admin">Admin</option>
                   <option value="superadmin">Superadmin</option>
                 </select>
-                {/* Statut filter */}
                 <select
                   className="adm-filter-select"
                   value={statutFilter}
@@ -369,7 +390,6 @@ function AdminDashboard({ user, setUser }) {
                   <option value="inactif">Inactif</option>
                   <option value="suspendu">Suspendu</option>
                 </select>
-                {/* Add user */}
                 {isSuperAdmin && (
                   <button className="adm-btn-add" onClick={openAdd}>
                     ＋ Ajouter
@@ -399,7 +419,6 @@ function AdminDashboard({ user, setUser }) {
                   <tbody>
                     {filteredUsers.map((u, i) => (
                       <tr key={u.id} style={{ animationDelay: `${i * 0.04}s` }}>
-                        {/* User info */}
                         <td>
                           <div className="adm-user-cell">
                             <div className="adm-avatar">{initials(u.name || u.email)}</div>
@@ -409,71 +428,45 @@ function AdminDashboard({ user, setUser }) {
                             </div>
                           </div>
                         </td>
-
-                        {/* Role */}
                         <td>
                           <span className={`adm-badge ${roleBadge(u.role)}`}>
                             {u.role || "user"}
                           </span>
                         </td>
-
-                        {/* Statut */}
                         <td>
                           <span className={`adm-badge ${statutBadge(u.statut || "actif")}`}>
                             {u.statut || "actif"}
                           </span>
                         </td>
-
-                        {/* Date */}
                         <td>
                           {u.created_at
                             ? new Date(u.created_at).toLocaleDateString("fr-TN")
                             : "—"}
                         </td>
-
-                        {/* Actions */}
                         <td>
                           <div className="adm-actions">
-                            {/* Edit */}
                             <button className="adm-btn-sm adm-btn-edit" onClick={() => openEdit(u)}>
                               ✏ Modifier
                             </button>
-
-                            {/* Role change (superadmin only) */}
                             {isSuperAdmin && u.role !== "superadmin" && (
                               <button
                                 className="adm-btn-sm adm-btn-role"
-                                onClick={() =>
-                                  changeRole(u, u.role === "admin" ? "user" : "admin")
-                                }
+                                onClick={() => changeRole(u, u.role === "admin" ? "user" : "admin")}
                               >
                                 {u.role === "admin" ? "⬇ User" : "⬆ Admin"}
                               </button>
                             )}
-
-                            {/* Suspend / Activate */}
                             {u.statut === "actif" ? (
-                              <button
-                                className="adm-btn-sm adm-btn-warn"
-                                onClick={() => changeStatut(u, "suspendu")}
-                              >
+                              <button className="adm-btn-sm adm-btn-warn" onClick={() => changeStatut(u, "suspendu")}>
                                 ⏸ Suspendre
                               </button>
                             ) : (
-                              <button
-                                className="adm-btn-sm adm-btn-success"
-                                onClick={() => changeStatut(u, "actif")}
-                              >
+                              <button className="adm-btn-sm adm-btn-success" onClick={() => changeStatut(u, "actif")}>
                                 ▶ Activer
                               </button>
                             )}
-
-                            {/* Delete (superadmin only, can't delete self) */}
                             {isSuperAdmin && u.id !== user?.id && (
-                              <button
-                                className="adm-btn-sm adm-btn-danger"
-                                onClick={() => setDeleteConfirm(u)}
-                              >
+                              <button className="adm-btn-sm adm-btn-danger" onClick={() => setDeleteConfirm(u)}>
                                 🗑 Supprimer
                               </button>
                             )}
@@ -505,9 +498,7 @@ function AdminDashboard({ user, setUser }) {
                 {reservations.map((r, i) => (
                   <div className="adm-list-card" key={r.id} style={{ animationDelay: `${i * 0.06}s` }}>
                     <div className="adm-list-left">
-                      <div className="adm-list-icon">
-                        {r.type === "salle" ? "🏢" : "🪑"}
-                      </div>
+                      <div className="adm-list-icon">{r.type === "salle" ? "🏢" : "🪑"}</div>
                       <div>
                         <h3 className="adm-list-title">{r.item_nom}</h3>
                         <div className="adm-list-meta">
@@ -524,10 +515,7 @@ function AdminDashboard({ user, setUser }) {
                       <span className={`adm-badge ${statutBadge(r.statut || "actif")}`}>
                         {r.statut || "confirmée"}
                       </span>
-                      <button
-                        className="adm-btn-sm adm-btn-danger"
-                        onClick={() => cancelReservation(r.id)}
-                      >
+                      <button className="adm-btn-sm adm-btn-danger" onClick={() => cancelReservation(r.id)}>
                         Annuler
                       </button>
                     </div>
@@ -570,7 +558,7 @@ function AdminDashboard({ user, setUser }) {
                       </div>
                     </div>
                     <div className="adm-list-right">
-                      <span className="adm-badge badge-actif">Inscrit</span>
+                      <span className="adm-badge badge-actif">{ins.statut || "Inscrit"}</span>
                     </div>
                   </div>
                 ))}
@@ -587,7 +575,6 @@ function AdminDashboard({ user, setUser }) {
             </div>
             <div className="adm-stats-row">
 
-              {/* Répartition par rôle */}
               <div className="adm-stats-card">
                 <h3 className="adm-stats-card-title">👥 Rôles des utilisateurs</h3>
                 <div className="adm-bar-chart">
@@ -595,10 +582,7 @@ function AdminDashboard({ user, setUser }) {
                     <div className="adm-bar-row" key={r.label}>
                       <span className="adm-bar-label">{r.label}</span>
                       <div className="adm-bar-track">
-                        <div
-                          className="adm-bar-fill"
-                          style={{ width: `${(r.val / maxRole) * 100}%` }}
-                        />
+                        <div className="adm-bar-fill" style={{ width: `${(r.val / maxRole) * 100}%` }} />
                       </div>
                       <span className="adm-bar-val">{r.val}</span>
                     </div>
@@ -606,14 +590,10 @@ function AdminDashboard({ user, setUser }) {
                 </div>
               </div>
 
-              {/* Répartition par statut (donut) */}
               <div className="adm-stats-card">
                 <h3 className="adm-stats-card-title">📊 Statuts des comptes</h3>
                 <div className="adm-donut-wrap">
-                  <div
-                    className="adm-donut"
-                    style={{ background: donutGradient }}
-                  />
+                  <div className="adm-donut" style={{ background: donutGradient }} />
                   <div className="adm-donut-legend">
                     {statutStats.map((s) => (
                       <div className="adm-donut-item" key={s.label}>
@@ -629,7 +609,6 @@ function AdminDashboard({ user, setUser }) {
                 </div>
               </div>
 
-              {/* Activité récente */}
               <div className="adm-stats-card">
                 <h3 className="adm-stats-card-title">📈 Activité plateforme</h3>
                 <div className="adm-bar-chart">
@@ -654,7 +633,6 @@ function AdminDashboard({ user, setUser }) {
 
             </div>
 
-            {/* Recent users table */}
             <div className="adm-toolbar" style={{ marginTop: 8 }}>
               <h2 className="adm-section-title">Derniers inscrits</h2>
             </div>
@@ -697,7 +675,6 @@ function AdminDashboard({ user, setUser }) {
 
       {/* ════ MODALS ════ */}
 
-      {/* Edit / Add user modal */}
       {modal && (
         <Modal
           title={modal.mode === "add" ? "Ajouter un utilisateur" : "Modifier l'utilisateur"}
@@ -712,7 +689,6 @@ function AdminDashboard({ user, setUser }) {
               value={form.name || ""}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             />
-
             <span className="adm-form-label">Adresse email</span>
             <input
               className="adm-form-input"
@@ -721,7 +697,6 @@ function AdminDashboard({ user, setUser }) {
               value={form.email || ""}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             />
-
             <span className="adm-form-label">
               {modal.mode === "add" ? "Mot de passe" : "Nouveau mot de passe (laisser vide = inchangé)"}
             </span>
@@ -732,7 +707,6 @@ function AdminDashboard({ user, setUser }) {
               value={form.password || ""}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             />
-
             {isSuperAdmin && (
               <>
                 <span className="adm-form-label">Rôle</span>
@@ -747,7 +721,6 @@ function AdminDashboard({ user, setUser }) {
                 </select>
               </>
             )}
-
             <span className="adm-form-label">Statut</span>
             <select
               className="adm-form-select"
@@ -758,7 +731,6 @@ function AdminDashboard({ user, setUser }) {
               <option value="inactif">Inactif</option>
               <option value="suspendu">Suspendu</option>
             </select>
-
             <div className="adm-form-actions">
               <button className="adm-btn-cancel" onClick={closeModal}>Annuler</button>
               <button className="adm-btn-save" onClick={handleSave}>
@@ -769,7 +741,6 @@ function AdminDashboard({ user, setUser }) {
         </Modal>
       )}
 
-      {/* Delete confirm modal */}
       {deleteConfirm && (
         <Modal title="Confirmer la suppression" onClose={() => setDeleteConfirm(null)}>
           <div className="adm-form">

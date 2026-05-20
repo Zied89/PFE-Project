@@ -4,10 +4,12 @@ const db = require("../db");
 const authMiddleware = require("../middleware/Authmiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
 
+// ─── SALLES ───────────────────────────────────────────────────────────────────
+
 // GET /api/coworking/salles
-router.get("/salles", authMiddleware, (req, res) => {
+router.get("/salles", authMiddleware, async (req, res) => {
   try {
-    const salles = db.prepare("SELECT * FROM salles ORDER BY id").all();
+    const { rows: salles } = await db.query("SELECT * FROM salles ORDER BY id");
     return res.json({ salles });
   } catch (err) {
     console.error("[salles GET]", err);
@@ -16,184 +18,287 @@ router.get("/salles", authMiddleware, (req, res) => {
 });
 
 // POST /api/coworking/salles (admin)
-router.post("/salles", authMiddleware, adminMiddleware, (req, res) => {
+router.post("/salles", authMiddleware, adminMiddleware, async (req, res) => {
   const { nom, capacite, disponible } = req.body;
   if (!nom || !capacite)
     return res.status(400).json({ message: "Nom et capacité sont obligatoires." });
   try {
-    const r = db.prepare("INSERT INTO salles (nom, capacite, disponible) VALUES (?, ?, ?)")
-      .run(nom, Number(capacite), disponible !== false ? 1 : 0);
-    return res.status(201).json({ salle: db.prepare("SELECT * FROM salles WHERE id = ?").get(r.lastInsertRowid) });
+    const { rows } = await db.query(
+      "INSERT INTO salles (nom, capacite, disponible) VALUES ($1, $2, $3) RETURNING *",
+      [nom, Number(capacite), disponible !== false]
+    );
+    return res.status(201).json({ salle: rows[0] });
   } catch (err) {
+    console.error("[salles POST]", err);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 });
 
 // PUT /api/coworking/salles/:id (admin)
-router.put("/salles/:id", authMiddleware, adminMiddleware, (req, res) => {
+router.put("/salles/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { nom, capacite, disponible } = req.body;
   const { id } = req.params;
-  if (!db.prepare("SELECT id FROM salles WHERE id = ?").get(id))
-    return res.status(404).json({ message: "Salle introuvable." });
   try {
-    db.prepare("UPDATE salles SET nom=?, capacite=?, disponible=? WHERE id=?")
-      .run(nom, Number(capacite), disponible ? 1 : 0, id);
-    return res.json({ salle: db.prepare("SELECT * FROM salles WHERE id = ?").get(id) });
+    const check = await db.query("SELECT id FROM salles WHERE id = $1", [id]);
+    if (!check.rows.length)
+      return res.status(404).json({ message: "Salle introuvable." });
+    const { rows } = await db.query(
+      "UPDATE salles SET nom=$1, capacite=$2, disponible=$3 WHERE id=$4 RETURNING *",
+      [nom, Number(capacite), Boolean(disponible), id]
+    );
+    return res.json({ salle: rows[0] });
   } catch (err) {
+    console.error("[salles PUT]", err);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 });
 
 // DELETE /api/coworking/salles/:id (admin)
-router.delete("/salles/:id", authMiddleware, adminMiddleware, (req, res) => {
-  if (!db.prepare("SELECT id FROM salles WHERE id = ?").get(req.params.id))
-    return res.status(404).json({ message: "Salle introuvable." });
-  db.prepare("DELETE FROM salles WHERE id = ?").run(req.params.id);
-  return res.json({ message: "Salle supprimée." });
+router.delete("/salles/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const check = await db.query("SELECT id FROM salles WHERE id = $1", [req.params.id]);
+    if (!check.rows.length)
+      return res.status(404).json({ message: "Salle introuvable." });
+    await db.query("DELETE FROM salles WHERE id = $1", [req.params.id]);
+    return res.json({ message: "Salle supprimée." });
+  } catch (err) {
+    console.error("[salles DELETE]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
+// ─── EMPLACEMENTS ─────────────────────────────────────────────────────────────
+
 // GET /api/coworking/emplacements
-router.get("/emplacements", authMiddleware, (req, res) => {
+router.get("/emplacements", authMiddleware, async (req, res) => {
   try {
-    const emplacements = db.prepare(`
+    const { rows: emplacements } = await db.query(`
       SELECT e.*, s.nom AS salle_nom FROM emplacements e
       LEFT JOIN salles s ON s.id = e.salle_id ORDER BY e.id
-    `).all();
+    `);
     return res.json({ emplacements });
   } catch (err) {
+    console.error("[emplacements GET]", err);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 });
 
 // POST /api/coworking/emplacements (admin)
-router.post("/emplacements", authMiddleware, adminMiddleware, (req, res) => {
+router.post("/emplacements", authMiddleware, adminMiddleware, async (req, res) => {
   const { nom, salle_id, places } = req.body;
   if (!nom || !salle_id || !places)
     return res.status(400).json({ message: "Tous les champs sont obligatoires." });
-  const r = db.prepare("INSERT INTO emplacements (nom, salle_id, places) VALUES (?, ?, ?)")
-    .run(nom, Number(salle_id), Number(places));
-  return res.status(201).json({ emplacement: db.prepare("SELECT * FROM emplacements WHERE id = ?").get(r.lastInsertRowid) });
+  try {
+    const { rows } = await db.query(
+      "INSERT INTO emplacements (nom, salle_id, places) VALUES ($1, $2, $3) RETURNING *",
+      [nom, Number(salle_id), Number(places)]
+    );
+    return res.status(201).json({ emplacement: rows[0] });
+  } catch (err) {
+    console.error("[emplacements POST]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
 // PUT /api/coworking/emplacements/:id (admin)
-router.put("/emplacements/:id", authMiddleware, adminMiddleware, (req, res) => {
+router.put("/emplacements/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { nom, salle_id, places } = req.body;
   const { id } = req.params;
-  if (!db.prepare("SELECT id FROM emplacements WHERE id = ?").get(id))
-    return res.status(404).json({ message: "Emplacement introuvable." });
-  db.prepare("UPDATE emplacements SET nom=?, salle_id=?, places=? WHERE id=?")
-    .run(nom, Number(salle_id), Number(places), id);
-  return res.json({ emplacement: db.prepare("SELECT * FROM emplacements WHERE id = ?").get(id) });
+  try {
+    const check = await db.query("SELECT id FROM emplacements WHERE id = $1", [id]);
+    if (!check.rows.length)
+      return res.status(404).json({ message: "Emplacement introuvable." });
+    const { rows } = await db.query(
+      "UPDATE emplacements SET nom=$1, salle_id=$2, places=$3 WHERE id=$4 RETURNING *",
+      [nom, Number(salle_id), Number(places), id]
+    );
+    return res.json({ emplacement: rows[0] });
+  } catch (err) {
+    console.error("[emplacements PUT]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
 // DELETE /api/coworking/emplacements/:id (admin)
-router.delete("/emplacements/:id", authMiddleware, adminMiddleware, (req, res) => {
-  if (!db.prepare("SELECT id FROM emplacements WHERE id = ?").get(req.params.id))
-    return res.status(404).json({ message: "Emplacement introuvable." });
-  db.prepare("DELETE FROM emplacements WHERE id = ?").run(req.params.id);
-  return res.json({ message: "Emplacement supprimé." });
+router.delete("/emplacements/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const check = await db.query("SELECT id FROM emplacements WHERE id = $1", [req.params.id]);
+    if (!check.rows.length)
+      return res.status(404).json({ message: "Emplacement introuvable." });
+    await db.query("DELETE FROM emplacements WHERE id = $1", [req.params.id]);
+    return res.json({ message: "Emplacement supprimé." });
+  } catch (err) {
+    console.error("[emplacements DELETE]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
+// ─── TABLES ───────────────────────────────────────────────────────────────────
+
 // GET /api/coworking/tables
-router.get("/tables", authMiddleware, (req, res) => {
+router.get("/tables", authMiddleware, async (req, res) => {
   try {
-    const tables = db.prepare(`
+    const { rows: tables } = await db.query(`
       SELECT t.*, e.nom AS emplacement_nom, s.nom AS salle_nom
       FROM tables_cw t
       LEFT JOIN emplacements e ON e.id = t.emplacement_id
       LEFT JOIN salles s ON s.id = e.salle_id ORDER BY t.id
-    `).all();
+    `);
     return res.json({ tables });
   } catch (err) {
+    console.error("[tables GET]", err);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 });
 
 // POST /api/coworking/tables (admin)
-router.post("/tables", authMiddleware, adminMiddleware, (req, res) => {
+router.post("/tables", authMiddleware, adminMiddleware, async (req, res) => {
   const { nom, emplacement_id, statut } = req.body;
   if (!nom || !emplacement_id)
     return res.status(400).json({ message: "Nom et emplacement sont obligatoires." });
-  const r = db.prepare("INSERT INTO tables_cw (nom, emplacement_id, statut) VALUES (?, ?, ?)")
-    .run(nom, Number(emplacement_id), statut || "Libre");
-  return res.status(201).json({ table: db.prepare("SELECT * FROM tables_cw WHERE id = ?").get(r.lastInsertRowid) });
+  try {
+    const { rows } = await db.query(
+      "INSERT INTO tables_cw (nom, emplacement_id, statut) VALUES ($1, $2, $3) RETURNING *",
+      [nom, Number(emplacement_id), statut || "Libre"]
+    );
+    return res.status(201).json({ table: rows[0] });
+  } catch (err) {
+    console.error("[tables POST]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
 // PUT /api/coworking/tables/:id (admin)
-router.put("/tables/:id", authMiddleware, adminMiddleware, (req, res) => {
+router.put("/tables/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { nom, emplacement_id, statut } = req.body;
   const { id } = req.params;
-  if (!db.prepare("SELECT id FROM tables_cw WHERE id = ?").get(id))
-    return res.status(404).json({ message: "Table introuvable." });
-  db.prepare("UPDATE tables_cw SET nom=?, emplacement_id=?, statut=? WHERE id=?")
-    .run(nom, Number(emplacement_id), statut, id);
-  return res.json({ table: db.prepare("SELECT * FROM tables_cw WHERE id = ?").get(id) });
+  try {
+    const check = await db.query("SELECT id FROM tables_cw WHERE id = $1", [id]);
+    if (!check.rows.length)
+      return res.status(404).json({ message: "Table introuvable." });
+    const { rows } = await db.query(
+      "UPDATE tables_cw SET nom=$1, emplacement_id=$2, statut=$3 WHERE id=$4 RETURNING *",
+      [nom, Number(emplacement_id), statut, id]
+    );
+    return res.json({ table: rows[0] });
+  } catch (err) {
+    console.error("[tables PUT]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
 // DELETE /api/coworking/tables/:id (admin)
-router.delete("/tables/:id", authMiddleware, adminMiddleware, (req, res) => {
-  if (!db.prepare("SELECT id FROM tables_cw WHERE id = ?").get(req.params.id))
-    return res.status(404).json({ message: "Table introuvable." });
-  db.prepare("DELETE FROM tables_cw WHERE id = ?").run(req.params.id);
-  return res.json({ message: "Table supprimée." });
+router.delete("/tables/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const check = await db.query("SELECT id FROM tables_cw WHERE id = $1", [req.params.id]);
+    if (!check.rows.length)
+      return res.status(404).json({ message: "Table introuvable." });
+    await db.query("DELETE FROM tables_cw WHERE id = $1", [req.params.id]);
+    return res.json({ message: "Table supprimée." });
+  } catch (err) {
+    console.error("[tables DELETE]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
+// ─── RESERVATIONS ─────────────────────────────────────────────────────────────
+
 // POST /api/coworking/reservations (auth)
-router.post("/reservations", authMiddleware, (req, res) => {
+router.post("/reservations", authMiddleware, async (req, res) => {
   const { type, item_id, item_nom, date, heure_debut, heure_fin } = req.body;
   if (!type || !item_id || !date || !heure_debut || !heure_fin)
     return res.status(400).json({ message: "Tous les champs sont obligatoires." });
   if (!["salle", "table"].includes(type))
     return res.status(400).json({ message: "Type invalide." });
+
+  const client = await db.connect();
   try {
-    const r = db.prepare(`
-      INSERT INTO reservations (user_id, type, item_id, item_nom, date, heure_debut, heure_fin, statut)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(req.user.id, type, item_id, item_nom || "", date, heure_debut, heure_fin, "Confirmée");
+    await client.query("BEGIN");
+
+    const { rows } = await client.query(
+      `INSERT INTO reservations (user_id, type, item_id, item_nom, date, heure_debut, heure_fin, statut)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [req.user.id, type, item_id, item_nom || "", date, heure_debut, heure_fin, "Confirmée"]
+    );
+
     if (type === "table")
-      db.prepare("UPDATE tables_cw SET statut='Réservée' WHERE id=?").run(item_id);
+      await client.query("UPDATE tables_cw SET statut='Réservée' WHERE id=$1", [item_id]);
     if (type === "salle")
-      db.prepare("UPDATE salles SET disponible=0 WHERE id=?").run(item_id);
-    return res.status(201).json({ reservation: db.prepare("SELECT * FROM reservations WHERE id = ?").get(r.lastInsertRowid) });
+      await client.query("UPDATE salles SET disponible=false WHERE id=$1", [item_id]);
+
+    await client.query("COMMIT");
+    return res.status(201).json({ reservation: rows[0] });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("[reservations POST]", err);
     return res.status(500).json({ message: "Erreur serveur." });
+  } finally {
+    client.release();
   }
 });
 
 // GET /api/coworking/reservations/me (auth)
-router.get("/reservations/me", authMiddleware, (req, res) => {
-  const reservations = db.prepare(
-    "SELECT * FROM reservations WHERE user_id = ? ORDER BY created_at DESC"
-  ).all(req.user.id);
-  return res.json({ reservations });
+router.get("/reservations/me", authMiddleware, async (req, res) => {
+  try {
+    const { rows: reservations } = await db.query(
+      "SELECT * FROM reservations WHERE user_id = $1 ORDER BY created_at DESC",
+      [req.user.id]
+    );
+    return res.json({ reservations });
+  } catch (err) {
+    console.error("[reservations/me GET]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
 // GET /api/coworking/reservations — toutes (admin)
-router.get("/reservations", authMiddleware, adminMiddleware, (req, res) => {
-  const reservations = db.prepare(`
-    SELECT r.*, u.name AS user_name, u.email AS user_email
-    FROM reservations r LEFT JOIN users u ON u.id = r.user_id
-    ORDER BY r.created_at DESC
-  `).all();
-  return res.json({ reservations });
+router.get("/reservations", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { rows: reservations } = await db.query(`
+      SELECT r.*, u.name AS user_name, u.email AS user_email
+      FROM reservations r LEFT JOIN users u ON u.id = r.user_id
+      ORDER BY r.created_at DESC
+    `);
+    return res.json({ reservations });
+  } catch (err) {
+    console.error("[reservations GET]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
 });
 
 // DELETE /api/coworking/reservations/:id (auth)
-router.delete("/reservations/:id", authMiddleware, (req, res) => {
-  const reservation = db.prepare("SELECT * FROM reservations WHERE id = ?").get(req.params.id);
-  if (!reservation) return res.status(404).json({ message: "Réservation introuvable." });
-  if (reservation.user_id !== req.user.id && req.user.role !== "admin" && req.user.role !== "superadmin")
-    return res.status(403).json({ message: "Accès refusé." });
+router.delete("/reservations/:id", authMiddleware, async (req, res) => {
+  const client = await db.connect();
   try {
-    db.prepare("DELETE FROM reservations WHERE id = ?").run(req.params.id);
+    const { rows } = await client.query(
+      "SELECT * FROM reservations WHERE id = $1", [req.params.id]
+    );
+    if (!rows.length)
+      return res.status(404).json({ message: "Réservation introuvable." });
+
+    const reservation = rows[0];
+
+    if (reservation.user_id !== req.user.id &&
+        req.user.role !== "admin" &&
+        req.user.role !== "superadmin")
+      return res.status(403).json({ message: "Accès refusé." });
+
+    await client.query("BEGIN");
+    await client.query("DELETE FROM reservations WHERE id = $1", [req.params.id]);
+
     if (reservation.type === "table")
-      db.prepare("UPDATE tables_cw SET statut='Libre' WHERE id=?").run(reservation.item_id);
+      await client.query("UPDATE tables_cw SET statut='Libre' WHERE id=$1", [reservation.item_id]);
     if (reservation.type === "salle")
-      db.prepare("UPDATE salles SET disponible=1 WHERE id=?").run(reservation.item_id);
+      await client.query("UPDATE salles SET disponible=true WHERE id=$1", [reservation.item_id]);
+
+    await client.query("COMMIT");
     return res.json({ message: "Réservation annulée." });
   } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[reservations DELETE]", err);
     return res.status(500).json({ message: "Erreur serveur." });
+  } finally {
+    client.release();
   }
 });
 

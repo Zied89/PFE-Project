@@ -15,7 +15,7 @@ const authHeaders = () => {
   };
 };
 
-const filters = ["Toutes", "Tech", "Créatif", "Business", "IA & Data", "Business & Entrepreneuriat"];
+const filters = ["Toutes", "Tech", "Créatif", "Business", "IA & Data", "Entrepreneuriat & Startup"];
 
 function Formation({ user }) {
   const navigate = useNavigate();
