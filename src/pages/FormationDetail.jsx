@@ -76,7 +76,6 @@ function FormationDetail({ user }) {
   const navigate = useNavigate();
 
   const [formation, setFormation] = useState(null);
-  const [isInscrit, setIsInscrit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -105,16 +104,10 @@ function FormationDetail({ user }) {
     const fetchFormation = async () => {
       setLoading(true);
       try {
-        const [fRes, iRes] = await Promise.all([
-          fetch(`${API}/formations/${id}`, { headers: authHeaders() }),
-          fetch(`${API}/formations/inscriptions/me`, { headers: authHeaders() }),
-        ]);
+        const fRes = await fetch(`${API}/formations/${id}`, { headers: authHeaders() });
         if (!fRes.ok) { setNotFound(true); return; }
         const fData = await fRes.json();
-        const iData = await iRes.json();
         setFormation(fData.formation);
-        const inscritIds = (iData.inscriptions || []).map(i => i.formation_id);
-        setIsInscrit(inscritIds.includes(fData.formation.id));
       } catch {
         setNotFound(true);
       } finally {
@@ -165,34 +158,6 @@ function FormationDetail({ user }) {
   const isCourseInCart = (course) =>
     cart.some(f => f._cartKey === `course-${formation?.id}-${course.id}`);
 
-  // ── Inscription formation entière ──────────────────────────────────────────
-  const handleInscrire = async () => {
-    if (isInscrit) return;
-    try {
-      const res = await fetch(`${API}/formations/${id}/inscrire`, {
-        method: "POST", headers: authHeaders(),
-      });
-      const data = await res.json();
-      if (!res.ok) { setErrorMsg(data.message); return; }
-      setIsInscrit(true);
-      showSuccess(data.message || "Inscription réussie !");
-    } catch {
-      setErrorMsg("Erreur lors de l'inscription.");
-    }
-  };
-
-  const handleDesinscrire = async () => {
-    try {
-      const res = await fetch(`${API}/formations/${id}/desinscrire`, {
-        method: "DELETE", headers: authHeaders(),
-      });
-      if (!res.ok) return;
-      setIsInscrit(false);
-      showSuccess("Désinscription effectuée.");
-    } catch {
-      setErrorMsg("Erreur lors de la désinscription.");
-    }
-  };
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -330,38 +295,19 @@ function FormationDetail({ user }) {
             <span>{courses.length}</span> programme{courses.length > 1 ? "s" : ""}
           </div>
 
-          {/* Actions : inscription directe OU ajout au panier */}
+          {/* Ajout au panier (formation complète) */}
           {!isAdmin && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "flex-end" }}>
-              {/* Bouton inscription directe */}
-              <button
-                onClick={isInscrit ? handleDesinscrire : handleInscrire}
-                style={{
-                  padding: "0.6rem 1.5rem", borderRadius: 24, border: "none", cursor: "pointer", fontWeight: 700,
-                  fontSize: "0.9rem", transition: "all 0.2s",
-                  background: isInscrit
-                    ? "rgba(74,222,128,0.15)"
-                    : "linear-gradient(135deg,#d4a843,#f0c060)",
-                  color: isInscrit ? "#4ade80" : "#1a1206",
-                }}>
-                {isInscrit ? "✓ Inscrit — Se désinscrire" : "S'inscrire maintenant"}
-              </button>
-
-              {/* Bouton ajout panier (formation complète) */}
-              {!isInscrit && (
-                <button
-                  onClick={toggleFormationCart}
-                  style={{
-                    padding: "0.5rem 1.2rem", borderRadius: 24, fontWeight: 600, fontSize: "0.85rem",
-                    cursor: "pointer", transition: "all 0.2s",
-                    background: isFormationInCart ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)",
-                    color: isFormationInCart ? "#93c5fd" : "#aaa",
-                    border: isFormationInCart ? "1px solid rgba(59,130,246,0.4)" : "1px solid rgba(255,255,255,0.12)",
-                  }}>
-                  {isFormationInCart ? "✓ Formation au panier" : "🛒 Ajouter au panier"}
-                </button>
-              )}
-            </div>
+            <button
+              onClick={toggleFormationCart}
+              style={{
+                padding: "0.5rem 1.2rem", borderRadius: 24, fontWeight: 600, fontSize: "0.85rem",
+                cursor: "pointer", transition: "all 0.2s",
+                background: isFormationInCart ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)",
+                color: isFormationInCart ? "#93c5fd" : "#aaa",
+                border: isFormationInCart ? "1px solid rgba(59,130,246,0.4)" : "1px solid rgba(255,255,255,0.12)",
+              }}>
+              {isFormationInCart ? "✓ Formation au panier" : "🛒 Ajouter au panier"}
+            </button>
           )}
         </div>
       </div>

@@ -78,13 +78,8 @@
 }
 
 @keyframes blobFloat {
-  from {
-    transform: translate(0, 0) scale(1);
-  }
-
-  to {
-    transform: translate(30px, 20px) scale(1.08);
-  }
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(30px, 20px) scale(1.08); }
 }
 
 /* ── Navbar ── */
@@ -94,6 +89,7 @@
   z-index: 100;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 14px 44px;
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(16px);
@@ -104,15 +100,8 @@
 }
 
 @keyframes slideDown {
-  from {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
 }
 
 .navbar-brand {
@@ -135,15 +124,8 @@
 }
 
 @keyframes iconPulse {
-
-  0%,
-  100% {
-    box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);
-  }
-
-  50% {
-    box-shadow: 0 4px 24px rgba(14, 165, 233, 0.7);
-  }
+  0%, 100% { box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4); }
+  50%       { box-shadow: 0 4px 24px rgba(14, 165, 233, 0.7); }
 }
 
 .brand-name {
@@ -195,15 +177,8 @@
 }
 
 @keyframes fadeUp {
-  from {
-    transform: translateY(28px);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(28px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
 /* ── Filters ── */
@@ -257,12 +232,12 @@
   box-shadow: 0 6px 20px rgba(14, 165, 233, 0.45);
 }
 
-/* ── Categories Grid ── */
+/* ── Categories Grid — 3 colonnes fixes ── */
 .categories-grid {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 26px;
   max-width: 1220px;
   margin: 32px auto;
@@ -326,40 +301,16 @@
 }
 
 /* Staggered reveal */
-.cat-card:nth-child(1) {
-  animation-delay: 0.1s;
-}
-
-.cat-card:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.cat-card:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-.cat-card:nth-child(4) {
-  animation-delay: 0.4s;
-}
-
-.cat-card:nth-child(5) {
-  animation-delay: 0.5s;
-}
-
-.cat-card:nth-child(6) {
-  animation-delay: 0.6s;
-}
+.cat-card:nth-child(1) { animation-delay: 0.1s; }
+.cat-card:nth-child(2) { animation-delay: 0.2s; }
+.cat-card:nth-child(3) { animation-delay: 0.3s; }
+.cat-card:nth-child(4) { animation-delay: 0.4s; }
+.cat-card:nth-child(5) { animation-delay: 0.5s; }
+.cat-card:nth-child(6) { animation-delay: 0.6s; }
 
 @keyframes cardReveal {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.97);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(30px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
 /* Card — category tag */
@@ -421,7 +372,7 @@
   border: 1.5px solid transparent;
 }
 
-/* + Panier / ✓ Au panier / ✓ Inscrit */
+/* + Panier / ✓ Au panier */
 .cat-footer button:first-child {
   background: transparent;
   border-color: var(--sky-300);
@@ -454,14 +405,13 @@
 }
 
 /* ── Cart Summary ── */
-.formation-page>div[style] {
+.formation-page > div[style] {
   position: relative;
   z-index: 1;
 }
 
-/* Cart wrapper — override inline style block */
 .formation-page .cart-wrapper,
-.formation-page>div:last-of-type {
+.formation-page > div:last-of-type {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -481,15 +431,8 @@
 }
 
 @keyframes cartBounce {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-5px);
-  }
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
 }
 
 .formation-page h3 {
@@ -548,7 +491,7 @@
 }
 
 /* ── Alerts ── */
-.formation-page>p {
+.formation-page > p {
   text-align: center;
   padding: 12px 24px;
   border-radius: 8px;
@@ -560,6 +503,12 @@
 }
 
 /* ── Responsive ── */
+@media (max-width: 1024px) {
+  .categories-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .navbar {
     padding: 12px 20px;

@@ -13,7 +13,6 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Charge l'utilisateur depuis localStorage au démarrage
   useEffect(() => {
     try {
       const saved = localStorage.getItem("user");
@@ -36,17 +35,14 @@ function App() {
     setUser(u);
   };
 
-  // Attendre la lecture du localStorage avant de rendre quoi que ce soit
   if (loading) return null;
 
   const isAuth = Boolean(user);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
-  // Guard : utilisateur connecté requis
   const RequireAuth = ({ children }) =>
     isAuth ? children : <Navigate to="/login" replace />;
 
-  // Guard : rôle admin ou superadmin requis
   const RequireAdmin = ({ children }) => {
     if (!isAuth) return <Navigate to="/login" replace />;
     if (!isAdmin) return <Navigate to="/choose-services" replace />;
@@ -57,17 +53,10 @@ function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* Racine → redirige selon l'état de connexion */}
-        <Route
-          path="/"
-          element={
-            isAuth
-              ? <Navigate to="/choose-services" replace />
-              : <Navigate to="/login" replace />
-          }
-        />
+        {/* Racine → toujours la page login */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
 
-        {/* Auth : si déjà connecté, on redirige directement */}
+        {/* Auth : si déjà connecté, redirige vers choose-services */}
         <Route
           path="/login"
           element={
@@ -94,7 +83,6 @@ function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/formation"
           element={
@@ -103,7 +91,6 @@ function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/formation/:id"
           element={
@@ -112,7 +99,6 @@ function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/coworking"
           element={
@@ -121,8 +107,6 @@ function App() {
             </RequireAuth>
           }
         />
-
-        {/* Dashboard admin — réservé admin/superadmin */}
         <Route
           path="/admin"
           element={
@@ -133,7 +117,7 @@ function App() {
         />
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
 
       </Routes>
     </BrowserRouter>
