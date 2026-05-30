@@ -7,7 +7,7 @@ import ChooseServices from "./pages/ChooseServices";
 import Formation from "./pages/Formation";
 import FormationDetail from "./pages/FormationDetail";
 import Coworking from "./pages/Coworking";
-import AdminDashboard from "./pages/AdminDashboard";
+import DashboardRouter from "./pages/DashboardRouter";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -107,11 +107,13 @@ function App() {
             </RequireAuth>
           }
         />
+
+        {/* Admin : redirige vers AdminDashboard ou SuperAdminDashboard selon le rôle */}
         <Route
           path="/admin"
           element={
             <RequireAdmin>
-              <AdminDashboard user={user} setUser={handleSetUser} />
+              <DashboardRouter user={user} setUser={handleSetUser} />
             </RequireAdmin>
           }
         />

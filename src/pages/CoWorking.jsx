@@ -140,6 +140,7 @@ function Coworking({ user }) {
           date: reservForm.date,
           heure_debut: reservForm.heure_debut,
           heure_fin: reservForm.heure_fin,
+          statut: "en_attente",
         }),
       });
       if (!res.ok) {
@@ -149,7 +150,7 @@ function Coworking({ user }) {
       }
       setReservModal(null);
       fetchAll();
-      showSuccess(`Réservation de "${reservModal.item.nom}" confirmée !`);
+      showSuccess(`Demande de réservation pour "${reservModal.item.nom}" envoyée — en attente de validation par l'admin.`);
     } catch {
       setError("Impossible de réserver. Réessayez.");
     }
@@ -362,8 +363,18 @@ function Coworking({ user }) {
                       </div>
                     </div>
                     <div className="cw-reserv-right">
-                      <span className="cw-badge badge--green">{r.statut}</span>
-                      <button className="cw-btn-annuler" onClick={() => annulerReservation(r.id)}>Annuler</button>
+                      <span className={`cw-badge ${
+                        r.statut === "acceptée" ? "badge--green" :
+                        r.statut === "refusée" ? "badge--red" :
+                        "badge--amber"
+                      }`}>
+                        {r.statut === "acceptée" ? "✅ Acceptée" :
+                         r.statut === "refusée"  ? "❌ Refusée"  :
+                         "⏳ En attente"}
+                      </span>
+                      {r.statut !== "refusée" && (
+                        <button className="cw-btn-annuler" onClick={() => annulerReservation(r.id)}>Annuler</button>
+                      )}
                     </div>
                     <div className="cw-card-line" />
                   </div>

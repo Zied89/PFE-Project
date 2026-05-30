@@ -38,14 +38,11 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   MAIN COMPONENT
-════════════════════════════════════════════════════════════ */
 function AdminDashboard({ user, setUser }) {
   const navigate = useNavigate();
   const isSuperAdmin = user?.role === "superadmin";
 
-  /* ── State ── */
+
   const [activeTab, setActiveTab] = useState("users");
   const [users, setUsers] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -60,8 +57,10 @@ function AdminDashboard({ user, setUser }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [reservFilter, setReservFilter] = useState("tous");
+  const [inscFilter, setInscFilter] = useState("tous");
 
-  /* ── Toast helper ── */
+
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
@@ -106,20 +105,20 @@ function AdminDashboard({ user, setUser }) {
   });
 
   /* ── KPI calculations ── */
+  const pendingReservations = reservations.filter(r => r.statut === "en_attente" || !r.statut || r.statut === "confirmée").length;
+  const pendingInscriptions = inscriptions.filter(i => i.statut === "en_attente" || !i.statut || i.statut === "Inscrit").length;
+
   const kpis = {
     total: users.length,
     admins: users.filter((u) => u.role === "admin" || u.role === "superadmin").length,
     actifs: users.filter((u) => u.statut === "actif").length,
     reservations: reservations.length,
     inscriptions: inscriptions.length,
+    pendingReservations,
+    pendingInscriptions,
   };
 
   /* ── User CRUD ── */
-  const openAdd = () => {
-    setForm({ name: "", email: "", password: "", role: "user", statut: "actif" });
-    setModal({ mode: "add" });
-  };
-
   const openEdit = (u) => {
     setForm({ ...u, password: "" });
     setModal({ mode: "edit", data: u });
@@ -195,42 +194,51 @@ function AdminDashboard({ user, setUser }) {
     }
   };
 
-  // ✅ Statut : non supporté côté DB pour l'instant, affichage seulement
   const changeStatut = async (u, newStatut) => {
-    showToast(`Fonctionnalité statut à venir pour ${u.name}.`, "error");
-  };
-
-  // ✅ Changement de rôle via /admin/users/:id/role
-  const changeRole = async (u, newRole) => {
-    if (!isSuperAdmin) return showToast("Seul le superadmin peut changer les rôles.", "error");
     try {
-      const res = await fetch(`${API}/admin/users/${u.id}/role`, {
+      const res = await fetch(`${API}/admin/users/${u.id}/statut`, {
         method: "PUT",
         headers: authHeaders(),
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify({ statut: newStatut }),
       });
       if (!res.ok) {
         const d = await res.json();
-        return showToast(d.message || "Erreur.", "error");
+        return showToast(d.message || "Erreur changement de statut.", "error");
       }
       fetchAll();
-      showToast(`Rôle de ${u.name} → ${newRole}.`);
+      showToast(`Statut de ${u.name} → ${newStatut}.`);
     } catch {
-      showToast("Erreur lors du changement de rôle.", "error");
+      showToast("Erreur de connexion au serveur.", "error");
     }
   };
 
-  const cancelReservation = async (id) => {
+  const updateStatutReservation = async (id, statut) => {
     try {
-      const res = await fetch(`${API}/coworking/reservations/${id}`, {
-        method: "DELETE",
+      const res = await fetch(`${API}/coworking/reservations/${id}/statut`, {
+        method: "PUT",
         headers: authHeaders(),
+        body: JSON.stringify({ statut }),
       });
-      if (!res.ok) return showToast("Erreur lors de l'annulation.", "error");
+      if (!res.ok) return showToast("Erreur lors de la mise à jour.", "error");
       fetchAll();
-      showToast("Réservation annulée.");
+      showToast(statut === "acceptée" ? "✅ Réservation acceptée." : "❌ Réservation refusée.");
     } catch {
-      showToast("Erreur lors de l'annulation.", "error");
+      showToast("Erreur de connexion au serveur.", "error");
+    }
+  };
+
+  const updateStatutInscription = async (id, statut) => {
+    try {
+      const res = await fetch(`${API}/formations/inscriptions/${id}/statut`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ statut }),
+      });
+      if (!res.ok) return showToast("Erreur lors de la mise à jour.", "error");
+      fetchAll();
+      showToast(statut === "acceptée" ? "✅ Inscription acceptée." : "❌ Inscription refusée.");
+    } catch {
+      showToast("Erreur de connexion au serveur.", "error");
     }
   };
 
@@ -262,8 +270,8 @@ function AdminDashboard({ user, setUser }) {
   /* ── TABS config ── */
   const TABS = [
     { id: "users", label: "Utilisateurs", icon: "👥", count: kpis.total },
-    { id: "reservations", label: "Réservations", icon: "📅", count: kpis.reservations },
-    { id: "inscriptions", label: "Inscriptions", icon: "🎓", count: kpis.inscriptions },
+    { id: "reservations", label: "Réservations", icon: "📅", count: kpis.reservations, pending: kpis.pendingReservations },
+    { id: "inscriptions", label: "Inscriptions", icon: "🎓", count: kpis.inscriptions, pending: kpis.pendingInscriptions },
     { id: "stats", label: "Statistiques", icon: "📊", count: null },
   ];
 
@@ -324,13 +332,18 @@ function AdminDashboard({ user, setUser }) {
           { icon: "👥", val: kpis.total, label: "Utilisateurs" },
           { icon: "🛡", val: kpis.admins, label: "Admins" },
           { icon: "✅", val: kpis.actifs, label: "Comptes actifs" },
-          { icon: "📅", val: kpis.reservations, label: "Réservations" },
-          { icon: "🎓", val: kpis.inscriptions, label: "Inscriptions" },
+          { icon: "📅", val: kpis.reservations, label: "Réservations", pending: kpis.pendingReservations },
+          { icon: "🎓", val: kpis.inscriptions, label: "Inscriptions", pending: kpis.pendingInscriptions },
         ].map((k, i) => (
           <div className="adm-kpi" key={k.label} style={{ animationDelay: `${i * 0.07}s` }}>
             <div className="adm-kpi-icon">{k.icon}</div>
             <div className="adm-kpi-val">{k.val}</div>
             <div className="adm-kpi-label">{k.label}</div>
+            {k.pending > 0 && (
+              <div style={{ fontSize: "0.7rem", color: "#f59e0b", fontWeight: 700, marginTop: 2 }}>
+                ⏳ {k.pending} en attente
+              </div>
+            )}
             <div className="adm-kpi-line" />
           </div>
         ))}
@@ -347,6 +360,11 @@ function AdminDashboard({ user, setUser }) {
             {t.icon} {t.label}
             {t.count !== null && (
               <span className="adm-tab-badge">{t.count}</span>
+            )}
+            {t.pending > 0 && (
+              <span className="adm-tab-badge" style={{ background: "#f59e0b", marginLeft: 2 }}>
+                ⏳ {t.pending}
+              </span>
             )}
           </button>
         ))}
@@ -390,11 +408,7 @@ function AdminDashboard({ user, setUser }) {
                   <option value="inactif">Inactif</option>
                   <option value="suspendu">Suspendu</option>
                 </select>
-                {isSuperAdmin && (
-                  <button className="adm-btn-add" onClick={openAdd}>
-                    ＋ Ajouter
-                  </button>
-                )}
+                {/* Ajout réservé au superadmin */}
               </div>
             </div>
 
@@ -448,28 +462,17 @@ function AdminDashboard({ user, setUser }) {
                             <button className="adm-btn-sm adm-btn-edit" onClick={() => openEdit(u)}>
                               ✏ Modifier
                             </button>
-                            {isSuperAdmin && u.role !== "superadmin" && (
-                              <button
-                                className="adm-btn-sm adm-btn-role"
-                                onClick={() => changeRole(u, u.role === "admin" ? "user" : "admin")}
-                              >
-                                {u.role === "admin" ? "⬇ User" : "⬆ Admin"}
-                              </button>
-                            )}
-                            {u.statut === "actif" ? (
-                              <button className="adm-btn-sm adm-btn-warn" onClick={() => changeStatut(u, "suspendu")}>
-                                ⏸ Suspendre
-                              </button>
-                            ) : (
-                              <button className="adm-btn-sm adm-btn-success" onClick={() => changeStatut(u, "actif")}>
-                                ▶ Activer
-                              </button>
-                            )}
-                            {isSuperAdmin && u.id !== user?.id && (
-                              <button className="adm-btn-sm adm-btn-danger" onClick={() => setDeleteConfirm(u)}>
-                                🗑 Supprimer
-                              </button>
-                            )}
+                            {/* Changement de rôle réservé au superadmin */}
+                            {(u.statut === "actif" || !u.statut) ? (
+                          <button className="adm-btn-sm adm-btn-warn" onClick={() => changeStatut(u, "suspendu")}>
+                            ⏸ Suspendre
+                          </button>
+                        ) : (
+                          <button className="adm-btn-sm adm-btn-success" onClick={() => changeStatut(u, "actif")}>
+                            ▶ Activer
+                          </button>
+                        )}
+                            {/* Suppression réservée au superadmin */}
                           </div>
                         </td>
                       </tr>
@@ -484,86 +487,181 @@ function AdminDashboard({ user, setUser }) {
         {/* ══ TAB: RESERVATIONS ══ */}
         {activeTab === "reservations" && (
           <>
-            <div className="adm-toolbar">
-              <h2 className="adm-section-title">Toutes les réservations</h2>
-            </div>
-            {reservations.length === 0 ? (
-              <div className="adm-empty">
-                <div className="adm-empty-icon">📭</div>
-                <p>Aucune réservation enregistrée.</p>
-                <p className="adm-empty-sub">Les réservations des utilisateurs apparaîtront ici.</p>
-              </div>
-            ) : (
-              <div className="adm-list">
-                {reservations.map((r, i) => (
-                  <div className="adm-list-card" key={r.id} style={{ animationDelay: `${i * 0.06}s` }}>
-                    <div className="adm-list-left">
-                      <div className="adm-list-icon">{r.type === "salle" ? "🏢" : "🪑"}</div>
-                      <div>
-                        <h3 className="adm-list-title">{r.item_nom}</h3>
-                        <div className="adm-list-meta">
-                          <span className={`adm-badge ${r.type === "salle" ? "badge-user" : "badge-admin"}`}>
-                            {r.type === "salle" ? "Salle" : "Table"}
-                          </span>
-                          <span>📅 {r.date}</span>
-                          <span>⏱ {r.heure_debut} – {r.heure_fin}</span>
-                          <span>👤 {r.user_name || r.user_email || `ID ${r.user_id}`}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="adm-list-right">
-                      <span className={`adm-badge ${statutBadge(r.statut || "actif")}`}>
-                        {r.statut || "confirmée"}
-                      </span>
-                      <button className="adm-btn-sm adm-btn-danger" onClick={() => cancelReservation(r.id)}>
-                        Annuler
-                      </button>
-                    </div>
-                  </div>
+            <div className="adm-toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
+              <h2 className="adm-section-title">
+                Réservations Coworking
+                {kpis.pendingReservations > 0 && (
+                  <span style={{ marginLeft: 10, fontSize: "0.78rem", background: "#f59e0b", color: "#fff", borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>
+                    ⏳ {kpis.pendingReservations} en attente
+                  </span>
+                )}
+              </h2>
+              <div className="adm-toolbar-right" style={{ gap: 4 }}>
+                {[
+                  { key: "tous",       label: "🗂 Tous",        color: "#1a6fc4" },
+                  { key: "en_attente", label: "⏳ En attente", color: "#f59e0b" },
+                  { key: "acceptée",   label: "✅ Acceptées",  color: "#22c55e" },
+                  { key: "refusée",    label: "❌ Refusées",   color: "#ef4444" },
+                ].map(f => (
+                  <button key={f.key} onClick={() => setReservFilter(f.key)} style={{
+                    padding: "5px 13px", borderRadius: 20, border: `1.5px solid ${f.color}`,
+                    fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                    background: reservFilter === f.key ? f.color : "transparent",
+                    color: reservFilter === f.key ? "#fff" : f.color,
+                    transition: "all .18s",
+                  }}>{f.label}</button>
                 ))}
               </div>
-            )}
+            </div>
+
+            {(() => {
+              const filtered = reservations.filter(r => {
+                if (reservFilter === "tous") return true;
+                if (reservFilter === "en_attente") return !r.statut || r.statut === "en_attente" || r.statut === "confirmée";
+                return r.statut === reservFilter;
+              });
+              if (filtered.length === 0) return (
+                <div className="adm-empty">
+                  <div className="adm-empty-icon">📭</div>
+                  <p>Aucune réservation pour ce filtre.</p>
+                </div>
+              );
+              return (
+                <div className="adm-list">
+                  {filtered.map((r, i) => {
+                    const isPending = !r.statut || r.statut === "en_attente" || r.statut === "confirmée";
+                    return (
+                      <div className="adm-list-card" key={r.id} style={{
+                        animationDelay: `${i * 0.06}s`,
+                        borderLeft: `4px solid ${isPending ? "#f59e0b" : r.statut === "acceptée" ? "#22c55e" : "#ef4444"}`,
+                      }}>
+                        <div className="adm-list-left">
+                          <div className="adm-list-icon">{r.type === "salle" ? "🏢" : "🪑"}</div>
+                          <div>
+                            <h3 className="adm-list-title">{r.item_nom}</h3>
+                            <div className="adm-list-meta">
+                              <span className={`adm-badge ${r.type === "salle" ? "badge-user" : "badge-admin"}`}>
+                                {r.type === "salle" ? "Salle" : "Table"}
+                              </span>
+                              <span>📅 {r.date}</span>
+                              <span>⏱ {r.heure_debut} – {r.heure_fin}</span>
+                              <span>👤 {r.user_name || r.user_email || `ID ${r.user_id}`}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="adm-list-right">
+                          <span className={`adm-badge ${isPending ? "badge-suspendu" : r.statut === "acceptée" ? "badge-actif" : "badge-inactif"}`}>
+                            {isPending ? "⏳ En attente" : r.statut === "acceptée" ? "✅ Acceptée" : "❌ Refusée"}
+                          </span>
+                          {isPending && (
+                            <>
+                              <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutReservation(r.id, "acceptée")}>
+                                ✅ Accepter
+                              </button>
+                              <button className="adm-btn-sm adm-btn-warn" onClick={() => updateStatutReservation(r.id, "refusée")}>
+                                ❌ Refuser
+                              </button>
+                            </>
+                          )}
+                          {/* Suppression réservée au superadmin */}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </>
         )}
 
         {/* ══ TAB: INSCRIPTIONS ══ */}
         {activeTab === "inscriptions" && (
           <>
-            <div className="adm-toolbar">
-              <h2 className="adm-section-title">Toutes les inscriptions</h2>
-            </div>
-            {inscriptions.length === 0 ? (
-              <div className="adm-empty">
-                <div className="adm-empty-icon">🎓</div>
-                <p>Aucune inscription enregistrée.</p>
-                <p className="adm-empty-sub">Les inscriptions aux formations apparaîtront ici.</p>
-              </div>
-            ) : (
-              <div className="adm-list">
-                {inscriptions.map((ins, i) => (
-                  <div className="adm-list-card" key={ins.id} style={{ animationDelay: `${i * 0.06}s` }}>
-                    <div className="adm-list-left">
-                      <div className="adm-list-icon">🎓</div>
-                      <div>
-                        <h3 className="adm-list-title">{ins.formation_titre || `Formation #${ins.formation_id}`}</h3>
-                        <div className="adm-list-meta">
-                          <span>👤 {ins.user_name || ins.user_email || `ID ${ins.user_id}`}</span>
-                          {ins.created_at && (
-                            <span>📅 {new Date(ins.created_at).toLocaleDateString("fr-TN")}</span>
-                          )}
-                          {ins.prix && (
-                            <span>💰 {Number(ins.prix).toLocaleString("fr-TN")} TND</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="adm-list-right">
-                      <span className="adm-badge badge-actif">{ins.statut || "Inscrit"}</span>
-                    </div>
-                  </div>
+            <div className="adm-toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
+              <h2 className="adm-section-title">
+                Inscriptions aux formations
+                {kpis.pendingInscriptions > 0 && (
+                  <span style={{ marginLeft: 10, fontSize: "0.78rem", background: "#f59e0b", color: "#fff", borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>
+                    ⏳ {kpis.pendingInscriptions} en attente
+                  </span>
+                )}
+              </h2>
+              <div className="adm-toolbar-right" style={{ gap: 4 }}>
+                {[
+                  { key: "tous",       label: "🗂 Tous",        color: "#1a6fc4" },
+                  { key: "en_attente", label: "⏳ En attente", color: "#f59e0b" },
+                  { key: "acceptée",   label: "✅ Acceptées",  color: "#22c55e" },
+                  { key: "refusée",    label: "❌ Refusées",   color: "#ef4444" },
+                ].map(f => (
+                  <button key={f.key} onClick={() => setInscFilter(f.key)} style={{
+                    padding: "5px 13px", borderRadius: 20, border: `1.5px solid ${f.color}`,
+                    fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                    background: inscFilter === f.key ? f.color : "transparent",
+                    color: inscFilter === f.key ? "#fff" : f.color,
+                    transition: "all .18s",
+                  }}>{f.label}</button>
                 ))}
               </div>
-            )}
+            </div>
+
+            {(() => {
+              const filtered = inscriptions.filter(ins => {
+                if (inscFilter === "tous") return true;
+                if (inscFilter === "en_attente") return !ins.statut || ins.statut === "en_attente" || ins.statut === "Inscrit";
+                return ins.statut === inscFilter;
+              });
+              if (filtered.length === 0) return (
+                <div className="adm-empty">
+                  <div className="adm-empty-icon">🎓</div>
+                  <p>Aucune inscription pour ce filtre.</p>
+                </div>
+              );
+              return (
+                <div className="adm-list">
+                  {filtered.map((ins, i) => {
+                    const isPending = !ins.statut || ins.statut === "en_attente" || ins.statut === "Inscrit";
+                    return (
+                      <div className="adm-list-card" key={ins.id} style={{
+                        animationDelay: `${i * 0.06}s`,
+                        borderLeft: `4px solid ${isPending ? "#f59e0b" : ins.statut === "acceptée" ? "#22c55e" : "#ef4444"}`,
+                      }}>
+                        <div className="adm-list-left">
+                          <div className="adm-list-icon">🎓</div>
+                          <div>
+                            <h3 className="adm-list-title">{ins.formation_titre || `Formation #${ins.formation_id}`}</h3>
+                            <div className="adm-list-meta">
+                              <span>👤 {ins.user_name || ins.user_email || `ID ${ins.user_id}`}</span>
+                              {ins.created_at && (
+                                <span>📅 {new Date(ins.created_at).toLocaleDateString("fr-TN")}</span>
+                              )}
+                              {ins.prix && (
+                                <span>💰 {Number(ins.prix).toLocaleString("fr-TN")} TND</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="adm-list-right">
+                          <span className={`adm-badge ${isPending ? "badge-suspendu" : ins.statut === "acceptée" ? "badge-actif" : "badge-inactif"}`}>
+                            {isPending ? "⏳ En attente" : ins.statut === "acceptée" ? "✅ Acceptée" : "❌ Refusée"}
+                          </span>
+                          {isPending && (
+                            <>
+                              <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutInscription(ins.id, "acceptée")}>
+                                ✅ Accepter
+                              </button>
+                              <button className="adm-btn-sm adm-btn-warn" onClick={() => updateStatutInscription(ins.id, "refusée")}>
+                                ❌ Refuser
+                              </button>
+                            </>
+                          )}
+                          {/* Suppression réservée au superadmin */}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </>
         )}
 
