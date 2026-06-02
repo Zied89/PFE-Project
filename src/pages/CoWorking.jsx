@@ -9,7 +9,7 @@ const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-const TABS = ["Salles", "Emplacements", "Tables", "Mes Réservations"];
+const ALL_TABS = ["Salles", "Emplacements", "Tables", "Mes Réservations"];
 
 function Modal({ title, onClose, children }) {
   return (
@@ -28,6 +28,10 @@ function Modal({ title, onClose, children }) {
 function Coworking({ user }) {
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  // Admins manage reservations from the AdminDashboard — hide that tab here
+  const TABS = isAdmin
+    ? ALL_TABS.filter(t => t !== "Mes Réservations")
+    : ALL_TABS;
   const [activeTab, setActiveTab] = useState("Salles");
 
   const [salles, setSalles] = useState([]);
@@ -213,7 +217,7 @@ function Coworking({ user }) {
           <div className="cw-stat"><span>{salles.length}</span>Salles</div>
           <div className="cw-stat"><span>{emplacements.length}</span>Emplacements</div>
           <div className="cw-stat"><span>{tables.length}</span>Tables</div>
-          <div className="cw-stat"><span>{reservations.length}</span>Réservations</div>
+          {!isAdmin && <div className="cw-stat"><span>{reservations.length}</span>Réservations</div>}
         </div>
       </div>
 
@@ -256,7 +260,7 @@ function Coworking({ user }) {
                       <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "salle", id: s.id, nom: s.nom })}>🗑</button>
                     </div>
                   )}
-                  {s.disponible ? (
+                  {!isAdmin && s.disponible ? (
                     <button className="cw-btn-reserv" onClick={() => openReserv("salle", s)}>
                       📅 Réserver cette salle
                     </button>
@@ -321,7 +325,7 @@ function Coworking({ user }) {
                       <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
                     </div>
                   )}
-                  {t.statut === "Libre" && (
+                  {!isAdmin && t.statut === "Libre" && (
                     <button className="cw-btn-reserv" onClick={() => openReserv("table", t)}>
                       📅 Réserver cette table
                     </button>

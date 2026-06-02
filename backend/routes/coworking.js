@@ -266,6 +266,48 @@ router.get("/reservations", authMiddleware, adminMiddleware, async (req, res) =>
   }
 });
 
+// ✅ PUT /api/coworking/reservations/:id/statut (admin)
+router.put("/reservations/:id/statut", authMiddleware, adminMiddleware, async (req, res) => {
+  const { statut } = req.body;
+  const { id } = req.params;
+
+  if (!["acceptée", "refusée"].includes(statut))
+    return res.status(400).json({ message: "Statut invalide. Valeurs acceptées: acceptée, refusée." });
+
+  const client = await db.connect();
+  try {
+    const { rows } = await client.query("SELECT * FROM reservations WHERE id = $1", [id]);
+    if (!rows.length)
+      return res.status(404).json({ message: "Réservation introuvable." });
+
+    const reservation = rows[0];
+
+    await client.query("BEGIN");
+    await client.query("UPDATE reservations SET statut=$1 WHERE id=$2", [statut, id]);
+
+    if (statut === "refusée") {
+      if (reservation.type === "table")
+        await client.query("UPDATE tables_cw SET statut='Libre' WHERE id=$1", [reservation.item_id]);
+      if (reservation.type === "salle")
+        await client.query("UPDATE salles SET disponible=true WHERE id=$1", [reservation.item_id]);
+    } else if (statut === "acceptée") {
+      if (reservation.type === "table")
+        await client.query("UPDATE tables_cw SET statut='Réservée' WHERE id=$1", [reservation.item_id]);
+      if (reservation.type === "salle")
+        await client.query("UPDATE salles SET disponible=false WHERE id=$1", [reservation.item_id]);
+    }
+
+    await client.query("COMMIT");
+    return res.json({ message: `Réservation ${statut} avec succès.` });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[reservations PUT statut]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  } finally {
+    client.release();
+  }
+});
+
 // DELETE /api/coworking/reservations/:id (auth)
 router.delete("/reservations/:id", authMiddleware, async (req, res) => {
   const client = await db.connect();

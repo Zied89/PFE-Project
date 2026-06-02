@@ -9,11 +9,39 @@ const superAdminMiddleware = require("../middleware/superAdminMiddleware");
 router.get("/users", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { rows: users } = await db.query(
-      "SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC"
+      "SELECT id, name, email, role, statut, created_at FROM users ORDER BY created_at DESC"
     );
     return res.json({ users });
   } catch (err) {
     console.error("[admin users GET]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+});
+
+// PUT /api/admin/users/:id/statut — changer le statut (admin)
+router.put("/users/:id/statut", authMiddleware, adminMiddleware, async (req, res) => {
+  const { statut } = req.body;
+  const { id } = req.params;
+
+  if (!["actif", "inactif", "suspendu"].includes(statut))
+    return res.status(400).json({ message: "Statut invalide." });
+
+  if (Number(id) === req.user.id)
+    return res.status(400).json({ message: "Vous ne pouvez pas modifier votre propre statut." });
+
+  try {
+    const { rows } = await db.query("SELECT * FROM users WHERE id = $1", [id]);
+    if (!rows.length)
+      return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    await db.query("UPDATE users SET statut = $1 WHERE id = $2", [statut, id]);
+
+    const { rows: updated } = await db.query(
+      "SELECT id, name, email, role, statut FROM users WHERE id = $1", [id]
+    );
+    return res.json({ user: updated[0], message: "Statut mis à jour." });
+  } catch (err) {
+    console.error("[admin users statut PUT]", err);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 });
@@ -26,12 +54,10 @@ router.put("/users/:id/role", authMiddleware, superAdminMiddleware, async (req, 
   if (!["user", "admin", "superadmin"].includes(role))
     return res.status(400).json({ message: "Rôle invalide." });
 
-  // Empêcher de se modifier soi-même
   if (Number(id) === req.user.id)
     return res.status(400).json({ message: "Vous ne pouvez pas modifier votre propre rôle." });
 
   try {
-    // Empêcher de rétrograder le dernier superadmin
     if (role !== "superadmin") {
       const { rows: countRows } = await db.query(
         "SELECT COUNT(*) AS c FROM users WHERE role = 'superadmin'"
@@ -48,7 +74,7 @@ router.put("/users/:id/role", authMiddleware, superAdminMiddleware, async (req, 
     await db.query("UPDATE users SET role = $1 WHERE id = $2", [role, id]);
 
     const { rows } = await db.query(
-      "SELECT id, name, email, role FROM users WHERE id = $1", [id]
+      "SELECT id, name, email, role, statut FROM users WHERE id = $1", [id]
     );
     return res.json({ user: rows[0], message: "Rôle mis à jour." });
   } catch (err) {

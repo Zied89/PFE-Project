@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Formation.css";
-import { FaShoppingCart } from "react-icons/fa";
 
 const API = "http://localhost:5000/api";
 
@@ -217,6 +216,22 @@ function Formation({ user }) {
       <div className="hero">
         <h1>Formations</h1>
         <p>{filtered.length} disponibles</p>
+        {isAdmin && (
+          <p style={{
+            marginTop: "0.5rem",
+            fontSize: "0.85rem",
+            color: "#f59e0b",
+            fontWeight: 600,
+          }}>
+            🛡 Mode admin — les inscriptions sont gérées depuis le{" "}
+            <span
+              style={{ textDecoration: "underline", cursor: "pointer" }}
+              onClick={() => navigate("/admin")}
+            >
+              Dashboard Admin
+            </span>
+          </p>
+        )}
       </div>
 
       {/* FILTERS */}
@@ -261,7 +276,7 @@ function Formation({ user }) {
       </div>
 
       {/* ═══ CART DRAWER ═══ */}
-      {showCart && (
+      {!isAdmin && showCart && (
         <div
           onClick={() => setShowCart(false)}
           style={{

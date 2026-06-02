@@ -219,9 +219,27 @@ function AdminDashboard({ user, setUser }) {
         headers: authHeaders(),
         body: JSON.stringify({ statut }),
       });
-      if (!res.ok) return showToast("Erreur lors de la mise à jour.", "error");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const errMsg = errData?.message || errData?.error || `Erreur ${res.status}`;
+        return showToast(`❌ ${errMsg}`, "error");
+      }
       fetchAll();
       showToast(statut === "acceptée" ? "✅ Réservation acceptée." : "❌ Réservation refusée.");
+    } catch (err) {
+      showToast(`Erreur de connexion: ${err.message}`, "error");
+    }
+  };
+
+  const deleteReservation = async (id) => {
+    try {
+      const res = await fetch(`${API}/coworking/reservations/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) return showToast("Erreur lors de la suppression.", "error");
+      fetchAll();
+      showToast("🗑 Réservation supprimée.");
     } catch {
       showToast("Erreur de connexion au serveur.", "error");
     }
@@ -234,9 +252,27 @@ function AdminDashboard({ user, setUser }) {
         headers: authHeaders(),
         body: JSON.stringify({ statut }),
       });
-      if (!res.ok) return showToast("Erreur lors de la mise à jour.", "error");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const errMsg = errData?.message || errData?.error || `Erreur ${res.status}`;
+        return showToast(`❌ ${errMsg}`, "error");
+      }
       fetchAll();
       showToast(statut === "acceptée" ? "✅ Inscription acceptée." : "❌ Inscription refusée.");
+    } catch (err) {
+      showToast(`Erreur de connexion: ${err.message}`, "error");
+    }
+  };
+
+  const deleteInscription = async (id) => {
+    try {
+      const res = await fetch(`${API}/formations/inscriptions/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) return showToast("Erreur lors de la suppression.", "error");
+      fetchAll();
+      showToast("🗑 Inscription supprimée.");
     } catch {
       showToast("Erreur de connexion au serveur.", "error");
     }
@@ -550,20 +586,23 @@ function AdminDashboard({ user, setUser }) {
                           </div>
                         </div>
                         <div className="adm-list-right">
-                          <span className={`adm-badge ${isPending ? "badge-suspendu" : r.statut === "acceptée" ? "badge-actif" : "badge-inactif"}`}>
-                            {isPending ? "⏳ En attente" : r.statut === "acceptée" ? "✅ Acceptée" : "❌ Refusée"}
-                          </span>
-                          {isPending && (
-                            <>
-                              <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutReservation(r.id, "acceptée")}>
-                                ✅ Accepter
-                              </button>
-                              <button className="adm-btn-sm adm-btn-warn" onClick={() => updateStatutReservation(r.id, "refusée")}>
-                                ❌ Refuser
-                              </button>
-                            </>
+                          {isPending && <span className="adm-badge badge-suspendu">⏳ En attente</span>}
+                          {r.statut === "acceptée" && <span className="adm-badge badge-actif">✅ Acceptée</span>}
+                          {r.statut !== "acceptée" && (
+                            <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutReservation(r.id, "acceptée")}>
+                              ✅ Accepter
+                            </button>
                           )}
-                          {/* Suppression réservée au superadmin */}
+                          {r.statut !== "refusée" && (
+                            <button className="adm-btn-sm adm-btn-warn" onClick={() => updateStatutReservation(r.id, "refusée")}>
+                              ❌ Refuser
+                            </button>
+                          )}
+                          {isSuperAdmin && (
+                            <button className="adm-btn-sm adm-btn-del" onClick={() => deleteReservation(r.id)}>
+                              🗑 Supprimer
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -641,20 +680,23 @@ function AdminDashboard({ user, setUser }) {
                           </div>
                         </div>
                         <div className="adm-list-right">
-                          <span className={`adm-badge ${isPending ? "badge-suspendu" : ins.statut === "acceptée" ? "badge-actif" : "badge-inactif"}`}>
-                            {isPending ? "⏳ En attente" : ins.statut === "acceptée" ? "✅ Acceptée" : "❌ Refusée"}
-                          </span>
-                          {isPending && (
-                            <>
-                              <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutInscription(ins.id, "acceptée")}>
-                                ✅ Accepter
-                              </button>
-                              <button className="adm-btn-sm adm-btn-warn" onClick={() => updateStatutInscription(ins.id, "refusée")}>
-                                ❌ Refuser
-                              </button>
-                            </>
+                          {isPending && <span className="adm-badge badge-suspendu">⏳ En attente</span>}
+                          {ins.statut === "acceptée" && <span className="adm-badge badge-actif">✅ Acceptée</span>}
+                          {ins.statut !== "acceptée" && (
+                            <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutInscription(ins.id, "acceptée")}>
+                              ✅ Accepter
+                            </button>
                           )}
-                          {/* Suppression réservée au superadmin */}
+                          {ins.statut !== "refusée" && (
+                            <button className="adm-btn-sm adm-btn-warn" onClick={() => updateStatutInscription(ins.id, "refusée")}>
+                              ❌ Refuser
+                            </button>
+                          )}
+                          {isSuperAdmin && (
+                            <button className="adm-btn-sm adm-btn-del" onClick={() => deleteInscription(ins.id)}>
+                              🗑 Supprimer
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
