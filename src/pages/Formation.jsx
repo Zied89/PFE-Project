@@ -14,6 +14,41 @@ const authHeaders = () => {
 
 const filters = ["Toutes", "Tech", "Créatif", "Business", "IA & Data", "Entrepreneuriat & Startup"];
 
+const getFormationIcon = (formation) => {
+  const titre = (formation.titre || "").toLowerCase();
+  const tag   = (formation.tag   || "").toLowerCase();
+
+  if (titre.includes("data science") || titre.includes("machine learning")) return "🤖";
+  if (titre.includes("intelligence artificielle") || titre.includes("ia avancée") || titre.includes("ia ")) return "🧠";
+  if (titre.includes("design") || titre.includes("ux") || titre.includes("ui") || titre.includes("figma")) return "🎨";
+  if (titre.includes("marketing")) return "📣";
+  if (titre.includes("python")) return "🐍";
+  if (titre.includes("javascript") || titre.includes("js")) return "⚡";
+  if (titre.includes("react") || titre.includes("vue") || titre.includes("angular")) return "⚛️";
+  if (titre.includes("web") || titre.includes("html") || titre.includes("css")) return "🌐";
+  if (titre.includes("mobile") || titre.includes("android") || titre.includes("ios")) return "📱";
+  if (titre.includes("cloud") || titre.includes("aws") || titre.includes("azure")) return "☁️";
+  if (titre.includes("cybersécurité") || titre.includes("sécurité") || titre.includes("cyber")) return "🔐";
+  if (titre.includes("blockchain") || titre.includes("crypto")) return "🔗";
+  if (titre.includes("startup") || titre.includes("entrepreneuriat")) return "🚀";
+  if (titre.includes("finance") || titre.includes("comptabilité")) return "💰";
+  if (titre.includes("management") || titre.includes("gestion")) return "📊";
+  if (titre.includes("photo") || titre.includes("vidéo")) return "📸";
+  if (titre.includes("musique") || titre.includes("audio")) return "🎵";
+  if (titre.includes("3d") || titre.includes("animation")) return "🎬";
+  if (titre.includes("excel") || titre.includes("tableau")) return "📊";
+  if (titre.includes("base de données") || titre.includes("sql")) return "🗄️";
+  if (titre.includes("devops") || titre.includes("docker") || titre.includes("linux")) return "🛠️";
+
+  if (tag === "tech") return "💻";
+  if (tag === "créatif") return "🎨";
+  if (tag === "business") return "💼";
+  if (tag === "ia & data") return "🧠";
+  if (tag === "entrepreneuriat & startup") return "🚀";
+
+  return "📚";
+};
+
 function Formation({ user }) {
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
@@ -287,6 +322,7 @@ function Formation({ user }) {
           const inCart = cart.some((c) => c.id === f.id && c._type === "formation");
           return (
             <div key={f.id} className="cat-card">
+              <div className="cat-icon">{getFormationIcon(f)}</div>
               <h2>{f.titre}</h2>
               <p>{f.description}</p>
               <strong>{f.prix} TND</strong>

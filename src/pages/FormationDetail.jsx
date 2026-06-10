@@ -518,21 +518,6 @@ function FormationDetail({ user }) {
         </div>
       )}
 
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        .fd-course-card {
-          display: flex !important;
-          align-items: center !important;
-          gap: 1rem !important;
-        }
-        .fd-course-left {
-          flex: 1 !important;
-          min-width: 0 !important;
-        }
-      `}</style>
     </div>
   );
 }
