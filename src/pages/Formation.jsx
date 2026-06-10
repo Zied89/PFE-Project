@@ -4,7 +4,6 @@ import "./Formation.css";
 
 const API = "http://localhost:5000/api";
 
-// 🔐 Headers sécurisés
 const authHeaders = () => {
   const token = localStorage.getItem("token");
   return {
@@ -21,26 +20,19 @@ function Formation({ user }) {
 
   const [activeFilter, setActiveFilter] = useState("Toutes");
   const [formations, setFormations] = useState([]);
-  
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [showCart, setShowCart] = useState(false);
 
-  // 🔄 FETCH DATA
+  /* ── Fetch formations ── */
   const fetchData = async () => {
     setLoading(true);
     setErrorMsg("");
-
     try {
-      const fRes = await fetch(`${API}/formations`, {
-        headers: authHeaders(),
-      });
-
+      const fRes = await fetch(`${API}/formations`, { headers: authHeaders() });
       if (!fRes.ok) throw new Error("Erreur API formations");
-
       const fData = await fRes.json();
-
       setFormations(fData.formations || []);
     } catch (err) {
       console.error(err);
@@ -50,17 +42,15 @@ function Formation({ user }) {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  // 🎯 FILTRE
+  /* ── Filter ── */
   const filtered =
     activeFilter === "Toutes"
       ? formations
       : formations.filter((f) => f.tag === activeFilter);
 
-  // 🛒 PANIER PARTAGÉ — même clé localStorage que FormationDetail.jsx
+  /* ── Cart (localStorage) ── */
   const cartKey = `cart_${user?.id || "guest"}`;
 
   const [cart, setCart] = useState(() => {
@@ -70,18 +60,14 @@ function Formation({ user }) {
     } catch { return []; }
   });
 
-  // Persister à chaque changement
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
 
-  // Sync depuis localStorage si l'utilisateur revient de FormationDetail
   useEffect(() => {
     const onStorageChange = (e) => {
       if (e.key === cartKey) {
-        try {
-          setCart(e.newValue ? JSON.parse(e.newValue) : []);
-        } catch {}
+        try { setCart(e.newValue ? JSON.parse(e.newValue) : []); } catch {}
       }
     };
     window.addEventListener("storage", onStorageChange);
@@ -104,77 +90,115 @@ function Formation({ user }) {
     }
   };
 
-  // 💰 TOTAL
   const total = cart.reduce((acc, f) => acc + Number(f.prix || 0), 0);
 
-  // 💳 CHECKOUT
+  /* ── Checkout ── */
   const handleCheckout = async () => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
+    if (!user) { navigate("/login"); return; }
+
+    setErrorMsg("");
+    setSuccessMsg("");
 
     const formationItems = cart.filter((f) => f._type === "formation");
-    const courseItems = cart.filter((f) => f._type === "course");
+    const courseItems    = cart.filter((f) => f._type === "course");
 
     try {
-      const promises = [];
-
-      if (formationItems.length > 0) {
-        promises.push(
-          fetch(`${API}/formations/inscrire-multiple`, {
-            method: "POST",
-            headers: authHeaders(),
-            body: JSON.stringify({ formationIds: formationItems.map((f) => f.id) }),
-          })
-        );
-      }
-
-      if (courseItems.length > 0) {
-        courseItems.forEach((course) => {
-          promises.push(
-            fetch(`${API}/formations/${course._formationId}/cours/${course.id}/inscrire`, {
+      const results = await Promise.allSettled([
+        // Formations — inscrire-multiple
+        ...(formationItems.length > 0
+          ? [fetch(`${API}/formations/inscrire-multiple`, {
               method: "POST",
               headers: authHeaders(),
-            })
-          );
-        });
+              body: JSON.stringify({ formationIds: formationItems.map((f) => f.id) }),
+            })]
+          : []),
+        // Cours individuels
+        ...courseItems.map((course) =>
+          fetch(`${API}/formations/${course._formationId}/cours/${course.id}/inscrire`, {
+            method: "POST",
+            headers: authHeaders(),
+          })
+        ),
+      ]);
+
+      // Analyse des résultats
+      let hasSuccess = false;
+      let alreadyAll = false;
+      let hasError   = false;
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const res  = result.value;
+          const data = await res.json().catch(() => ({}));
+
+          if (res.ok) {
+            hasSuccess = true;
+            // Si certaines étaient déjà inscrites mais d'autres ajoutées
+            if (data.added?.length > 0) hasSuccess = true;
+            if (data.already?.length > 0 && data.added?.length === 0) alreadyAll = true;
+          } else if (res.status === 409) {
+            alreadyAll = true;
+          } else {
+            hasError = true;
+            console.error("Erreur inscription:", data.message);
+          }
+        } else {
+          hasError = true;
+        }
       }
 
-      if (promises.length === 0) return;
+      if (alreadyAll && !hasSuccess) {
+        setErrorMsg("⚠️ Vous êtes déjà inscrit(e) à toutes ces formations.");
+        return;
+      }
+      if (hasError && !hasSuccess) {
+        setErrorMsg("❌ Erreur lors de l'inscription. Veuillez réessayer.");
+        return;
+      }
 
-      await Promise.all(promises);
+      // ✅ Succès
       setCart([]);
+      localStorage.removeItem(cartKey);
       setShowCart(false);
-      setSuccessMsg("✅ Inscription(s) confirmée(s) !");
+      setSuccessMsg("✅ Inscription(s) confirmée(s) ! En attente de validation par l'admin.");
       fetchData();
-    } catch {
-      setErrorMsg("❌ Erreur lors de l'inscription.");
+
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("❌ Erreur de connexion au serveur.");
     }
   };
 
-  // ⏳ LOADING
-  if (loading) {
-    return (
-      <div className="formation-page">
-        <p style={{ textAlign: "center" }}>Chargement...</p>
-      </div>
-    );
-  }
+  /* ── Loading ── */
+  if (loading) return (
+    <div className="formation-page">
+      <p style={{ textAlign: "center", padding: "4rem", color: "#888" }}>Chargement...</p>
+    </div>
+  );
 
   return (
     <div className="formation-page">
-      {/* ALERTS */}
-      {errorMsg && <p style={{ color: "red" }}>{errorMsg}</p>}
-      {successMsg && <p style={{ color: "green" }}>{successMsg}</p>}
 
+      {/* ── NAVBAR ── */}
       <nav className="navbar">
         <div className="navbar-brand">
           <div className="brand-icon">⚡</div>
           <span className="brand-name">TZ Prime Solutions</span>
         </div>
 
-        {/* Bouton panier dans la navbar */}
+        <div className="navbar-links">
+          {user && (
+            <div
+              className="navbar-user"
+              onClick={() => navigate("/services")}
+              style={{ cursor: "pointer" }}
+              title="Retour aux services"
+            >
+              <span className="user-dot" />
+              {user.name || user.email || "Utilisateur"}
+            </div>
+          )}
+
         {!isAdmin && (
           <button
             onClick={() => setShowCart(true)}
@@ -182,14 +206,11 @@ function Formation({ user }) {
               position: "relative",
               background: cart.length > 0 ? "rgba(212,168,67,0.15)" : "rgba(255,255,255,0.06)",
               border: cart.length > 0 ? "1px solid rgba(212,168,67,0.4)" : "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 12,
-              padding: "0.45rem 0.9rem",
+              borderRadius: 12, padding: "0.45rem 0.9rem",
               cursor: "pointer",
               color: cart.length > 0 ? "#d4a843" : "#aaa",
               fontSize: "1rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
+              display: "flex", alignItems: "center", gap: "0.4rem",
               transition: "all 0.2s",
             }}
           >
@@ -198,11 +219,8 @@ function Formation({ user }) {
               <>
                 <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>{cart.length}</span>
                 <span style={{
-                  fontSize: "0.75rem",
-                  color: "#d4a843",
-                  fontWeight: 600,
-                  borderLeft: "1px solid rgba(212,168,67,0.3)",
-                  paddingLeft: "0.5rem",
+                  fontSize: "0.75rem", color: "#d4a843", fontWeight: 600,
+                  borderLeft: "1px solid rgba(212,168,67,0.3)", paddingLeft: "0.5rem",
                 }}>
                   {total.toLocaleString("fr-TN")} TND
                 </span>
@@ -210,19 +228,35 @@ function Formation({ user }) {
             )}
           </button>
         )}
+        </div>
       </nav>
 
-      {/* HERO */}
+      {/* ── ALERTS ── */}
+      {errorMsg && (
+        <div style={{
+          margin: "1rem 2rem", padding: "0.85rem 1.2rem",
+          background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+          borderRadius: 10, color: "#ef4444", fontWeight: 600, fontSize: "0.9rem",
+        }}>
+          {errorMsg}
+        </div>
+      )}
+      {successMsg && (
+        <div style={{
+          margin: "1rem 2rem", padding: "0.85rem 1.2rem",
+          background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)",
+          borderRadius: 10, color: "#22c55e", fontWeight: 600, fontSize: "0.9rem",
+        }}>
+          {successMsg}
+        </div>
+      )}
+
+      {/* ── HERO ── */}
       <div className="hero">
         <h1>Formations</h1>
         <p>{filtered.length} disponibles</p>
         {isAdmin && (
-          <p style={{
-            marginTop: "0.5rem",
-            fontSize: "0.85rem",
-            color: "#f59e0b",
-            fontWeight: 600,
-          }}>
+          <p style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#f59e0b", fontWeight: 600 }}>
             🛡 Mode admin — les inscriptions sont gérées depuis le{" "}
             <span
               style={{ textDecoration: "underline", cursor: "pointer" }}
@@ -234,7 +268,7 @@ function Formation({ user }) {
         )}
       </div>
 
-      {/* FILTERS */}
+      {/* ── FILTERS ── */}
       <div className="filters">
         {filters.map((f) => (
           <button
@@ -247,28 +281,22 @@ function Formation({ user }) {
         ))}
       </div>
 
-      {/* GRID */}
+      {/* ── GRID ── */}
       <div className="categories-grid">
         {filtered.map((f) => {
           const inCart = cart.some((c) => c.id === f.id && c._type === "formation");
-
           return (
             <div key={f.id} className="cat-card">
               <h2>{f.titre}</h2>
               <p>{f.description}</p>
-
               <strong>{f.prix} TND</strong>
-
               <div className="cat-footer">
                 {!isAdmin && (
                   <button onClick={() => toggleCart(f)}>
                     {inCart ? "✓ Au panier" : "+ Panier"}
                   </button>
                 )}
-
-                <button onClick={() => navigate(`/formation/${f.id}`)}>
-                  Voir →
-                </button>
+                <button onClick={() => navigate(`/formation/${f.id}`)}>Voir →</button>
               </div>
             </div>
           );
@@ -282,8 +310,7 @@ function Formation({ user }) {
           style={{
             position: "fixed", inset: 0,
             background: "rgba(0,0,0,0.5)",
-            zIndex: 100,
-            backdropFilter: "blur(2px)",
+            zIndex: 100, backdropFilter: "blur(2px)",
           }}
         >
           <div
@@ -306,7 +333,9 @@ function Formation({ user }) {
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
               <div>
-                <h2 style={{ margin: 0, color: "#fff", fontSize: "1.2rem", fontWeight: 700 }}>🛒 Mon Panier</h2>
+                <h2 style={{ margin: 0, color: "#fff", fontSize: "1.2rem", fontWeight: 700 }}>
+                  🛒 Mon Panier
+                </h2>
                 <span style={{ fontSize: "0.8rem", color: "#888", marginTop: "0.2rem", display: "block" }}>
                   {cart.length} article{cart.length > 1 ? "s" : ""}
                 </span>
@@ -319,9 +348,7 @@ function Formation({ user }) {
                   borderRadius: 8, padding: "0.4rem 0.7rem",
                   color: "#aaa", cursor: "pointer", fontSize: "1rem",
                 }}
-              >
-                ✕
-              </button>
+              >✕</button>
             </div>
 
             {/* Items */}
@@ -382,9 +409,7 @@ function Formation({ user }) {
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.color = "#ef4444"}
                             onMouseLeave={(e) => e.currentTarget.style.color = "#555"}
-                          >
-                            ✕
-                          </button>
+                          >✕</button>
                         </div>
                       ))}
                     </div>
@@ -399,7 +424,7 @@ function Formation({ user }) {
               borderTop: "1px solid rgba(255,255,255,0.08)",
               background: "rgba(0,0,0,0.3)",
             }}>
-              {/* Subtotals si les deux types */}
+              {/* Subtotals si les deux types présents */}
               {cart.some((f) => f._type === "formation") && cart.some((f) => f._type === "course") && (
                 <div style={{ marginBottom: "0.75rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "#888", marginBottom: "0.3rem" }}>
@@ -428,6 +453,26 @@ function Formation({ user }) {
                 </div>
               </div>
 
+              {/* Inline alerts dans le drawer */}
+              {errorMsg && (
+                <div style={{
+                  marginBottom: "0.8rem", padding: "0.6rem 0.9rem",
+                  background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+                  borderRadius: 8, color: "#ef4444", fontSize: "0.82rem", fontWeight: 600,
+                }}>
+                  {errorMsg}
+                </div>
+              )}
+              {successMsg && (
+                <div style={{
+                  marginBottom: "0.8rem", padding: "0.6rem 0.9rem",
+                  background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)",
+                  borderRadius: 8, color: "#22c55e", fontSize: "0.82rem", fontWeight: 600,
+                }}>
+                  {successMsg}
+                </div>
+              )}
+
               <button
                 onClick={handleCheckout}
                 disabled={cart.length === 0}
@@ -447,7 +492,7 @@ function Formation({ user }) {
 
               {cart.length > 0 && (
                 <button
-                  onClick={() => setCart([])}
+                  onClick={() => { setCart([]); localStorage.removeItem(cartKey); }}
                   style={{
                     width: "100%", marginTop: "0.6rem", padding: "0.5rem",
                     background: "none", border: "none", color: "#555",
@@ -467,7 +512,7 @@ function Formation({ user }) {
       <style>{`
         @keyframes slideInRight {
           from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
+          to   { transform: translateX(0);    opacity: 1; }
         }
       `}</style>
     </div>

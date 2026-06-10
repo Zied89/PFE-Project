@@ -1,0 +1,192 @@
+/* ══════════════════════════════════════════════════════════════
+   global-bg.css — TZ Prime Solutions — Background universel
+   À importer dans index.css ou App.css (une seule fois)
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Reset body ── */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+body {
+  background-image: url('/tz-bg.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* ── Overlay sombre sur l'image pour lisibilité du texte ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 15, 30, 0.72);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Toutes les pages au-dessus de l'overlay ── */
+.page,
+.auth-page,
+.formation-page,
+.fd-page,
+.cw-page,
+.adm-page,
+.sa-page {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+}
+
+/* ── Supprimer les anciens backgrounds colorés des pages ── */
+.page {
+  background: transparent !important;
+}
+
+.formation-page {
+  background: transparent !important;
+}
+
+.fd-page {
+  background: transparent !important;
+}
+
+.cw-page {
+  background: transparent !important;
+}
+
+.adm-page {
+  background: transparent !important;
+}
+
+.sa-page {
+  background: transparent !important;
+}
+
+.auth-page {
+  background: transparent !important;
+}
+
+/* ── Blobs décoratifs — rendre plus subtils sur fond sombre ── */
+.bg-glow {
+  background: radial-gradient(ellipse at 60% 10%, rgba(90, 180, 255, 0.12) 0%, transparent 65%) !important;
+}
+
+.bg-glow2 {
+  background: radial-gradient(ellipse at 10% 80%, rgba(26, 111, 196, 0.1) 0%, transparent 55%) !important;
+}
+
+/* ── Auth card — garder le fond blanc ── */
+.auth-card {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ── Navbar — fond foncé semi-transparent ── */
+.navbar,
+.sa-navbar {
+  background: rgba(5, 15, 30, 0.75) !important;
+  backdrop-filter: blur(18px) !important;
+  border-bottom: 1px solid rgba(90, 180, 255, 0.15) !important;
+}
+
+/* ── Cards Formation & Coworking ── */
+.cat-card,
+.cw-card,
+.card,
+.fd-hero,
+.cw-modal,
+.sa-modal {
+  background: rgba(10, 25, 50, 0.65) !important;
+  backdrop-filter: blur(14px) !important;
+  border-color: rgba(90, 180, 255, 0.2) !important;
+  color: #e0f0ff;
+}
+
+/* ── Titres lisibles sur fond sombre ── */
+.cat-card h2,
+.cat-card p,
+.card-title,
+.card-desc,
+.hero-title,
+.hero-subtitle,
+.cw-card-title,
+.cw-card-meta,
+.fd-course-title,
+.adm-hero-title,
+.sa-hero-title {
+  color: #e8f4ff !important;
+}
+
+.hero-eyebrow,
+.cat-tag,
+.cw-stat {
+  color: #7dd3fc !important;
+}
+
+/* ── KPI cards Admin ── */
+.adm-kpi,
+.sa-kpi {
+  background: rgba(10, 25, 50, 0.6) !important;
+  border-color: rgba(90, 180, 255, 0.2) !important;
+  backdrop-filter: blur(12px);
+}
+
+/* ── List cards Admin ── */
+.adm-list-card,
+.sa-list-card {
+  background: rgba(10, 25, 50, 0.6) !important;
+  border-color: rgba(90, 180, 255, 0.15) !important;
+  backdrop-filter: blur(10px);
+}
+
+/* ── Table Admin ── */
+.adm-table-wrap,
+.sa-table-wrap {
+  background: rgba(10, 25, 50, 0.55) !important;
+  border-color: rgba(90, 180, 255, 0.15) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.adm-table th,
+.sa-table th {
+  background: rgba(26, 111, 196, 0.2) !important;
+  color: #7dd3fc !important;
+}
+
+.adm-table td,
+.sa-table td {
+  color: #c8e4ff !important;
+  border-color: rgba(90, 180, 255, 0.08) !important;
+}
+
+.adm-table tr:hover td,
+.sa-table tr:hover td {
+  background: rgba(90, 180, 255, 0.06) !important;
+}
+
+/* ── Hero Admin ── */
+.adm-hero,
+.sa-hero {
+  background: transparent !important;
+}
+
+/* ── ChooseServices cards ── */
+.cards-grid .card {
+  background: rgba(10, 25, 50, 0.65) !important;
+  border-color: rgba(90, 180, 255, 0.25) !important;
+  backdrop-filter: blur(14px) !important;
+}
+
+/* ── Formation page floating blobs — désactiver ── */
+.formation-page::before,
+.formation-page::after {
+  display: none !important;
+}

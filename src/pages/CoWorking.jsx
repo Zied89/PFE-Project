@@ -194,7 +194,12 @@ function Coworking({ user }) {
         </div>
         <div className="navbar-links">
           {user && (
-            <div className="navbar-user">
+            <div
+              className="navbar-user"
+              onClick={() => navigate("/services")}
+              style={{ cursor: "pointer" }}
+              title="Retour aux services"
+            >
               <span className="user-dot" />
               {user.name || user.email}
               {isAdmin && <span style={{ marginLeft: 6, fontSize: "0.7rem", opacity: 0.7 }}>({user.role})</span>}

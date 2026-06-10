@@ -226,7 +226,12 @@ function FormationDetail({ user }) {
         </div>
         <div className="navbar-links">
           {user && (
-            <div className="navbar-user">
+            <div
+              className="navbar-user"
+              onClick={() => navigate("/services")}
+              style={{ cursor: "pointer" }}
+              title="Retour aux services"
+            >
               <span className="user-dot" />
               {user.name || user.email || "Utilisateur"}
             </div>
