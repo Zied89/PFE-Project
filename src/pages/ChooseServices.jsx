@@ -46,10 +46,8 @@ function ChooseServices({ user, setUser }) {
       <div className="hero">
         <p className="hero-eyebrow">Nos solutions</p>
         <h1 className="hero-title">Choisissez un service</h1>
-        <p className="hero-subtitle">
-          Accédez à nos solutions pensées pour vous.<br />
-          Bienvenue chez notre société.
-        </p>
+        
+        
         <div className="hero-divider" />
       </div>
 
