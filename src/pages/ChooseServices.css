@@ -127,34 +127,45 @@
 }
 
 /* ── Hero ── */
+/* ── Hero ── */
 .hero {
   position: relative;
   z-index: 2;
   text-align: center;
-  padding: 38px 20px 20px;
+  padding: 30px 15px 20px;
 }
-
 .hero-eyebrow {
-  font-size: 11px;
-  font-weight: 60;
-  letter-spacing: 0.18em;
-  color: #d4a843 !important;
+  font-size: 800px !important;        /* ← was 18px */
   text-transform: uppercase;
-  margin: 0 0 10px;
+  letter-spacing: 3px;
+  color: #d4a843 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  width: auto !important;
+  display: inline-block;
+  margin-bottom: 0.8rem;
 }
-
 .hero-title {
   font-family: 'Cinzel', serif;
-  font-size: 30px;
+  font-size: 28px;          /* ← was 50px */
   font-weight: 600;
   color: #d4a843;
-  margin: 0 0 12px;
-  text-shadow: 0 2px 16px rgba(212,168,67,0.35);
+  margin: 0 0 8px;
+  text-shadow: 0 2px 10px rgba(212,168,67,0.25);
+}
+.hero-desc{
+  background: transparent !important;
+  font-size: 20px !important;          /* ← was 18px */
+  color: white !important;
+  line-height: 1.6;
+  margin: 0 auto;
+  max-width: 480px;
 }
 
 
 .hero-divider {
-  width: 60px;
+  width: 600px;
   height: 3px;
   background: linear-gradient(90deg, #d4a843, #f0d080);
   border-radius: 2px;
