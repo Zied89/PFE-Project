@@ -8,6 +8,7 @@ import Formation from "./pages/Formation";
 import FormationDetail from "./pages/FormationDetail";
 import Coworking from "./pages/Coworking";
 import DashboardRouter from "./pages/DashboardRouter";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -39,6 +40,7 @@ function App() {
 
   const isAuth = Boolean(user);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isSuperAdmin = user?.role === "superadmin";
 
   const RequireAuth = ({ children }) =>
     isAuth ? children : <Navigate to="/login" replace />;
@@ -46,6 +48,12 @@ function App() {
   const RequireAdmin = ({ children }) => {
     if (!isAuth) return <Navigate to="/login" replace />;
     if (!isAdmin) return <Navigate to="/choose-services" replace />;
+    return children;
+  };
+
+  const RequireSuperAdmin = ({ children }) => {
+    if (!isAuth) return <Navigate to="/login" replace />;
+    if (!isSuperAdmin) return <Navigate to="/choose-services" replace />;
     return children;
   };
 
@@ -108,13 +116,23 @@ function App() {
           }
         />
 
-        {/* Admin : redirige vers AdminDashboard ou SuperAdminDashboard selon le rôle */}
+        {/* Admin : réservé aux rôles admin/superadmin (DashboardRouter choisit le bon composant) */}
         <Route
           path="/admin"
           element={
             <RequireAdmin>
               <DashboardRouter user={user} setUser={handleSetUser} />
             </RequireAdmin>
+          }
+        />
+
+        {/* Super Admin : réservé strictement au rôle superadmin */}
+        <Route
+          path="/superadmin"
+          element={
+            <RequireSuperAdmin>
+              <SuperAdminDashboard user={user} setUser={handleSetUser} />
+            </RequireSuperAdmin>
           }
         />
 

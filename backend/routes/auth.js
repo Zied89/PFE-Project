@@ -43,6 +43,8 @@ const DUMMY_HASH = "$2a$12$dummyhashfortimingpreventionXXXXXXXXXXXXXXXXXXXXXXXXX
 })();
 
 // ─── POST /api/auth/register ───────────────────────────────────────────────
+const { sendWelcomeEmail } = require("../services/mailer"); // ajuste le chemin selon ton arborescence
+
 router.post("/register", authLimiter, async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -82,6 +84,10 @@ router.post("/register", authLimiter, async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
+
+    // 📧 Envoi de l'email de bienvenue (ne bloque pas la réponse si ça échoue,
+    // les erreurs sont déjà gérées/loggées à l'intérieur de sendWelcomeEmail)
+    sendWelcomeEmail(normalizedEmail, normalizedName);
 
     return res.status(201).json({
       message: "Compte créé avec succès.",

@@ -4,6 +4,7 @@ import "./ChooseServices.css";
 function ChooseServices({ user, setUser }) {
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isSuperAdmin = user?.role === "superadmin";
 
   const handleLogout = () => {
     setUser(null);
@@ -43,9 +44,9 @@ function ChooseServices({ user, setUser }) {
           {isAdmin && (
             <button
               className="btn-logout btn-admin"
-              onClick={() => navigate("/admin")}
+              onClick={() => navigate(isSuperAdmin ? "/superadmin" : "/admin")}
             >
-              🛡 Dashboard Admin
+              {isSuperAdmin ? "👑 Dashboard Super Admin" : "🛡 Dashboard Admin"}
             </button>
           )}
           <button className="btn-logout" onClick={handleLogout}>
