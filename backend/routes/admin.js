@@ -1,9 +1,11 @@
+
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const authMiddleware = require("../middleware/Authmiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
 const superAdminMiddleware = require("../middleware/superAdminMiddleware");
+
 
 // GET /api/admin/users — liste des utilisateurs (admin)
 router.get("/users", authMiddleware, adminMiddleware, async (req, res) => {
