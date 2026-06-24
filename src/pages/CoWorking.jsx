@@ -46,7 +46,7 @@ function Coworking({ user }) {
   const [form, setForm] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [reservModal, setReservModal] = useState(null);
-  const [reservForm, setReservForm] = useState({ date: "", heure_debut: "", heure_fin: "" });
+  const [reservForm, setReservForm] = useState({ date: "", heure_debut: "", heure_fin: "", table_ids: [] });
 
   const showSuccess = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(""), 3500); };
 
@@ -127,8 +127,20 @@ function Coworking({ user }) {
 
   // ── Réservations ───────────────────────────────────────────────────────────
   const openReserv = (type, item) => {
-    setReservForm({ date: "", heure_debut: "", heure_fin: "" });
+    setReservForm({ date: "", heure_debut: "", heure_fin: "", table_ids: [] });
     setReservModal({ type, item });
+  };
+
+  const toggleReservTable = (tableId) => {
+    setReservForm(f => {
+      const already = f.table_ids.includes(tableId);
+      return {
+        ...f,
+        table_ids: already
+          ? f.table_ids.filter(id => id !== tableId)
+          : [...f.table_ids, tableId],
+      };
+    });
   };
 
   const handleReserv = async () => {
@@ -145,6 +157,7 @@ function Coworking({ user }) {
           heure_debut: reservForm.heure_debut,
           heure_fin: reservForm.heure_fin,
           statut: "en_attente",
+          table_ids: reservModal.type === "salle" ? reservForm.table_ids : [],
         }),
       });
       if (!res.ok) {
@@ -174,6 +187,12 @@ function Coworking({ user }) {
 
   const getSalleName = (id) => salles.find(s => s.id === id)?.nom || "—";
   const getEmplacementName = (id) => emplacements.find(e => e.id === id)?.nom || "—";
+
+  // Tables appartenant à une salle donnée (via ses emplacements)
+  const getTablesOfSalle = (salleId) => {
+    const empIds = emplacements.filter(e => e.salle_id === salleId).map(e => e.id);
+    return tables.filter(t => empIds.includes(t.emplacement_id));
+  };
 
   if (loading) return (
     <div className="cw-page" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -369,6 +388,13 @@ function Coworking({ user }) {
                           <span className="cw-reserv-date">📅 {r.date}</span>
                           <span className="cw-reserv-time">⏱ {r.heure_debut} – {r.heure_fin}</span>
                         </p>
+                        {r.type === "salle" && Array.isArray(r.table_ids) && r.table_ids.length > 0 && (
+                          <p className="cw-reserv-meta" style={{ marginTop: 4 }}>
+                            🪑 Tables : {r.table_ids
+                              .map(id => tables.find(t => t.id === id)?.nom || `#${id}`)
+                              .join(", ")}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="cw-reserv-right">
@@ -477,6 +503,51 @@ function Coworking({ user }) {
             <label>Heure de fin</label>
             <input type="time" value={reservForm.heure_fin}
               onChange={e => setReservForm(f => ({ ...f, heure_fin: e.target.value }))} />
+
+            {reservModal.type === "salle" && (() => {
+              const salleTables = getTablesOfSalle(reservModal.item.id);
+              return (
+                <>
+                  <label>Tables de cette salle {salleTables.length > 0 && `(${reservForm.table_ids.length} sélectionnée${reservForm.table_ids.length > 1 ? "s" : ""})`}</label>
+                  {salleTables.length === 0 ? (
+                    <p className="cw-card-meta" style={{ marginTop: 0 }}>Aucune table enregistrée pour cette salle.</p>
+                  ) : (
+                    <div className="cw-reserv-tables-list">
+                      {salleTables.map(t => {
+                        const isLibre = t.statut === "Libre";
+                        const checked = reservForm.table_ids.includes(t.id);
+                        return (
+                          <label
+                            key={t.id}
+                            className={`cw-reserv-table-item ${!isLibre ? "disabled" : ""} ${checked ? "checked" : ""}`}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 8,
+                              padding: "8px 10px", borderRadius: 8,
+                              opacity: isLibre ? 1 : 0.5,
+                              cursor: isLibre ? "pointer" : "not-allowed",
+                              border: checked ? "1px solid #4dd6a0" : "1px solid rgba(0,0,0,0.1)",
+                              marginBottom: 6,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={!isLibre}
+                              onChange={() => toggleReservTable(t.id)}
+                            />
+                            <span>🪑 {t.nom}</span>
+                            <span className={`cw-badge ${isLibre ? "badge--green" : "badge--amber"}`} style={{ marginLeft: "auto" }}>
+                              {t.statut}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
             <div className="cw-form-actions">
               <button className="cw-btn-cancel" onClick={() => setReservModal(null)}>Annuler</button>
               <button className="cw-btn-save" onClick={handleReserv}>Confirmer</button>

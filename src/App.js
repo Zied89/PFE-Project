@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "./pages/Login";
@@ -11,20 +11,16 @@ import DashboardRouter from "./pages/DashboardRouter";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
+  // ✅ Lecture synchrone de localStorage — avant le premier rendu
+  const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem("user");
-      setUser(saved ? JSON.parse(saved) : null);
+      return saved ? JSON.parse(saved) : null;
     } catch {
       localStorage.removeItem("user");
-      setUser(null);
-    } finally {
-      setLoading(false);
+      return null;
     }
-  }, []);
+  });
 
   const handleSetUser = (u) => {
     if (u) {
@@ -35,8 +31,6 @@ function App() {
     }
     setUser(u);
   };
-
-  if (loading) return null;
 
   const isAuth = Boolean(user);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
@@ -61,8 +55,11 @@ function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* Racine → toujours la page login */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        {/* Racine → choose-services si connecté, sinon login */}
+        <Route
+          path="/"
+          element={<Navigate to={isAuth ? "/choose-services" : "/login"} replace />}
+        />
 
         {/* Auth : si déjà connecté, redirige vers choose-services */}
         <Route
@@ -116,7 +113,7 @@ function App() {
           }
         />
 
-        {/* Admin : réservé aux rôles admin/superadmin (DashboardRouter choisit le bon composant) */}
+        {/* Admin */}
         <Route
           path="/admin"
           element={
@@ -126,7 +123,7 @@ function App() {
           }
         />
 
-        {/* Super Admin : réservé strictement au rôle superadmin */}
+        {/* Super Admin */}
         <Route
           path="/superadmin"
           element={
@@ -137,7 +134,10 @@ function App() {
         />
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to={isAuth ? "/choose-services" : "/login"} replace />}
+        />
 
       </Routes>
     </BrowserRouter>

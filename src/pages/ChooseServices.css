@@ -135,7 +135,7 @@
   padding: 30px 15px 20px;
 }
 .hero-eyebrow {
-  font-size: 800px !important;        /* ← was 18px */
+  font-size: 18px !important;        /* ← was 18px */
   text-transform: uppercase;
   letter-spacing: 3px;
   color: #d4a843 !important;

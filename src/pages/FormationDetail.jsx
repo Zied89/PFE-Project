@@ -479,7 +479,7 @@ function FormationDetail({ user }) {
                 <div>
                   <span style={{ color: "#888", fontSize: "0.82rem" }}>Total à payer</span>
                   <div style={{ color: "#d4a843", fontSize: "1.6rem", fontWeight: 800, lineHeight: 1.1 }}>
-                    {cartTotal.toLocaleString("fr-TN")}
+                   {cart.reduce((acc, f) => acc + Number(f.prix || 0), 0).toLocaleString("fr-TN")}
                     <span style={{ fontSize: "0.9rem", fontWeight: 600, marginLeft: 4 }}>TND</span>
                   </div>
                 </div>

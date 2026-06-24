@@ -218,13 +218,10 @@ router.post("/reservations", authMiddleware, async (req, res) => {
     const { rows } = await client.query(
       `INSERT INTO reservations (user_id, type, item_id, item_nom, date, heure_debut, heure_fin, statut)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [req.user.id, type, item_id, item_nom || "", date, heure_debut, heure_fin, "Confirmée"]
+      [req.user.id, type, item_id, item_nom || "", date, heure_debut, heure_fin, "en_attente"]
     );
 
-    if (type === "table")
-      await client.query("UPDATE tables_cw SET statut='Réservée' WHERE id=$1", [item_id]);
-    if (type === "salle")
-      await client.query("UPDATE salles SET disponible=false WHERE id=$1", [item_id]);
+    // La table/salle sera bloquée uniquement après acceptation par l'admin (PUT /statut)
 
     await client.query("COMMIT");
     return res.status(201).json({ reservation: rows[0] });
