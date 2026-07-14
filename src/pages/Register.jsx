@@ -42,7 +42,7 @@ function Register({ setUser }) {
       }
 
       // Stocker le token JWT
-      localStorage.setItem("token", data.token);
+      sessionStorage.setItem("token", data.token);
 
       // Mettre à jour l'état utilisateur
       setUser(data.user);

@@ -1,4 +1,5 @@
 require("dotenv").config();
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 
@@ -9,6 +10,9 @@ const adminRoutes = require("./routes/admin");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Chemin vers le build React (adaptez si votre dossier frontend a un autre nom, ex: "client/build")
+const BUILD_PATH = path.join(__dirname, "build");
 
 // ─── Middlewares ──────────────────────────────────────────────────────────────
 app.use(cors({
@@ -30,8 +34,18 @@ app.use("/api/admin", adminRoutes);
 // Route de santé
 app.get("/api/health", (_, res) => res.json({ status: "ok" }));
 
-// Gestion des routes inconnues
-app.use((_, res) => res.status(404).json({ message: "Route introuvable." }));
+// 404 JSON pour les routes API inconnues (doit rester AVANT le fallback SPA)
+app.use("/api", (_, res) => res.status(404).json({ message: "Route introuvable." }));
+
+// ─── Frontend (build React) ──────────────────────────────────────────────────
+// Sert les fichiers statiques (JS, CSS, images) du build
+app.use(express.static(BUILD_PATH));
+
+// Fallback SPA : toute route non-API (ex: /formation, /coworking, /admin) renvoie
+// index.html, et c'est React Router qui gère l'affichage côté client.
+app.get(/^(?!\/api).*/, (_, res) => {
+  res.sendFile(path.join(BUILD_PATH, "index.html"));
+});
 
 // ─── Démarrage ────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {

@@ -11,23 +11,24 @@ import DashboardRouter from "./pages/DashboardRouter";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 
 function App() {
-  // ✅ Lecture synchrone de localStorage — avant le premier rendu
+  // ✅ sessionStorage = isolé par onglet (pas partagé entre onglets, contrairement à localStorage).
+  // Chaque onglet peut donc avoir sa propre session connectée (compte user différent d'un compte admin par ex).
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem("user");
+      const saved = sessionStorage.getItem("user");
       return saved ? JSON.parse(saved) : null;
     } catch {
-      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
       return null;
     }
   });
 
   const handleSetUser = (u) => {
     if (u) {
-      localStorage.setItem("user", JSON.stringify(u));
+      sessionStorage.setItem("user", JSON.stringify(u));
     } else {
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
+      sessionStorage.removeItem("user");
+      sessionStorage.removeItem("token");
     }
     setUser(u);
   };

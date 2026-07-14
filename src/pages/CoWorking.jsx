@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./Coworking.css";
 
 const API = "http://localhost:5000/api";
-const getToken = () => localStorage.getItem("token");
+const getToken = () => sessionStorage.getItem("token");
 const authHeaders = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${getToken()}`,

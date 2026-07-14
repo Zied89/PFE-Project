@@ -5,7 +5,7 @@ import "./Formation.css";
 const API = "http://localhost:5000/api";
 
 const authHeaders = () => {
-  const token = localStorage.getItem("token");
+  const token = sessionStorage.getItem("token");
   return {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),

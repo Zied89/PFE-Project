@@ -5,7 +5,7 @@ import "./AdminDashboard.css";
 const API = "http://localhost:5000/api";
 const authHeaders = () => ({
   "Content-Type": "application/json",
-  Authorization: `Bearer ${localStorage.getItem("token")}`,
+  Authorization: `Bearer ${sessionStorage.getItem("token")}`,
 });
 
 /* ── Helpers ── */
