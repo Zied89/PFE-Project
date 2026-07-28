@@ -201,11 +201,18 @@ router.delete("/tables/:id", authMiddleware, adminMiddleware, async (req, res) =
   }
 });
 
-// ─── RESERVATIONS ─────────────────────────────────────────────────────────────
+// Helper: durée en heures entre deux horaires "HH:MM"
+const calculerNbHeures = (heureDebut, heureFin) => {
+  const [h1, m1] = (heureDebut || "").split(":").map(Number);
+  const [h2, m2] = (heureFin || "").split(":").map(Number);
+  if ([h1, m1, h2, m2].some((n) => Number.isNaN(n))) return 0;
+  const minutes = (h2 * 60 + m2) - (h1 * 60 + m1);
+  return minutes > 0 ? minutes / 60 : 0;
+};
 
 // POST /api/coworking/reservations (auth)
 router.post("/reservations", authMiddleware, async (req, res) => {
-  const { type, item_id, item_nom, date, heure_debut, heure_fin } = req.body;
+  const { type, item_id, item_nom, date, heure_debut, heure_fin, table_ids } = req.body;
   if (!type || !item_id || !date || !heure_debut || !heure_fin)
     return res.status(400).json({ message: "Tous les champs sont obligatoires." });
   if (!["salle", "table"].includes(type))
@@ -215,10 +222,51 @@ router.post("/reservations", authMiddleware, async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    // Durée en heures (calculée côté serveur, source de vérité)
+    const nbHeures = calculerNbHeures(heure_debut, heure_fin);
+
+    // Tarif horaire réel en base (on ne fait pas confiance au tarif envoyé par le client)
+    const tableIdsArr = Array.isArray(table_ids) ? table_ids.map(Number) : [];
+    let tarifHoraire = 0;
+
+    if (type === "salle") {
+      const { rows: salleRows } = await client.query(
+        "SELECT tarif_horaire FROM salles WHERE id = $1", [item_id]
+      );
+      tarifHoraire = Number(salleRows[0]?.tarif_horaire) || 0;
+
+      if (tableIdsArr.length) {
+        const { rows: tablesRows } = await client.query(
+          "SELECT tarif_horaire FROM tables_cw WHERE id = ANY($1::int[])", [tableIdsArr]
+        );
+        tarifHoraire += tablesRows.reduce((sum, t) => sum + (Number(t.tarif_horaire) || 0), 0);
+      }
+    } else {
+      const { rows: tableRows } = await client.query(
+        "SELECT tarif_horaire, emplacement_id FROM tables_cw WHERE id = $1", [item_id]
+      );
+      const tarifTable = Number(tableRows[0]?.tarif_horaire) || 0;
+      if (tarifTable) {
+        tarifHoraire = tarifTable;
+      } else {
+        // Pas de tarif propre à la table → on retombe sur le tarif de sa salle
+        const { rows: emplRows } = await client.query(
+          "SELECT salle_id FROM emplacements WHERE id = $1", [tableRows[0]?.emplacement_id]
+        );
+        const { rows: salleRows } = await client.query(
+          "SELECT tarif_horaire FROM salles WHERE id = $1", [emplRows[0]?.salle_id]
+        );
+        tarifHoraire = Number(salleRows[0]?.tarif_horaire) || 0;
+      }
+    }
+
+    const frais = +(tarifHoraire * nbHeures).toFixed(2);
+
     const { rows } = await client.query(
-      `INSERT INTO reservations (user_id, type, item_id, item_nom, date, heure_debut, heure_fin, statut)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [req.user.id, type, item_id, item_nom || "", date, heure_debut, heure_fin, "en_attente"]
+      `INSERT INTO reservations
+         (user_id, type, item_id, item_nom, date, heure_debut, heure_fin, statut, nb_heures, frais, table_ids)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [req.user.id, type, item_id, item_nom || "", date, heure_debut, heure_fin, "en_attente", nbHeures, frais, JSON.stringify(tableIdsArr)]
     );
 
     // La table/salle sera bloquée uniquement après acceptation par l'admin (PUT /statut)
@@ -231,6 +279,32 @@ router.post("/reservations", authMiddleware, async (req, res) => {
     return res.status(500).json({ message: "Erreur serveur." });
   } finally {
     client.release();
+  }
+});
+
+// GET /api/coworking/reservations/disponibilite?type=salle|table&item_id=ID (auth)
+// Renvoie, pour CET item, tous utilisateurs confondus, les créneaux non refusés
+// (donc "en_attente" et "acceptée") afin que le calendrier front puisse colorer
+// les jours réservés et afficher les heures déjà prises.
+router.get("/reservations/disponibilite", authMiddleware, async (req, res) => {
+  const { type, item_id } = req.query;
+  if (!type || !item_id)
+    return res.status(400).json({ message: "Paramètres 'type' et 'item_id' obligatoires." });
+  if (!["salle", "table"].includes(type))
+    return res.status(400).json({ message: "Type invalide." });
+
+  try {
+    const { rows: creneaux } = await db.query(
+      `SELECT date, heure_debut, heure_fin, statut
+       FROM reservations
+       WHERE type = $1 AND item_id = $2 AND statut <> 'refusée'
+       ORDER BY date, heure_debut`,
+      [type, Number(item_id)]
+    );
+    return res.json({ creneaux });
+  } catch (err) {
+    console.error("[reservations disponibilite GET]", err);
+    return res.status(500).json({ message: err.message || "Erreur serveur." });
   }
 });
 

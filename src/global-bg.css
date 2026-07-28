@@ -15,16 +15,30 @@ body {
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
-  background-attachment: fixed;
+  /* background-attachment: fixed a été retiré : cause des bugs de scroll
+     (page qui semble coupée avant la fin réelle du contenu), surtout sur
+     mobile. On simule le fond fixe avec ::before ci-dessous à la place. */
 }
 
-/* ── Overlay sombre sur l'image pour lisibilité du texte ── */
+/* ── Fond fixe + overlay sombre, dans deux pseudo-éléments fixes (z-index négatif, sous le contenu) ── */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
+  background-image: url('/tz-bg.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
   background: rgba(5, 15, 30, 0.72);
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
 }
 

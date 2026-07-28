@@ -59,13 +59,7 @@ function AdminDashboard({ user, setUser }) {
   const [reservations, setReservations] = useState([]);
   const [inscriptions, setInscriptions] = useState([]);
   const [purchases, setPurchases] = useState([]);
-  const [salles, setSalles] = useState([]);
-  const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // ── Tarifs tab: valeurs en cours d'édition (clé "salle-3" / "table-7")
-  const [tarifEdits, setTarifEdits] = useState({});
-  const [tarifSaving, setTarifSaving] = useState({});
 
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("tous");
@@ -95,25 +89,19 @@ function AdminDashboard({ user, setUser }) {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [uRes, rRes, iRes, sRes, tRes] = await Promise.all([
+      const [uRes, rRes, iRes] = await Promise.all([
         fetch(`${API}/admin/users`, { headers: authHeaders() }),
         fetch(`${API}/coworking/reservations`, { headers: authHeaders() }),
         fetch(`${API}/formations/inscriptions/all`, { headers: authHeaders() }),
-        fetch(`${API}/coworking/salles`, { headers: authHeaders() }),
-        fetch(`${API}/coworking/tables`, { headers: authHeaders() }),
       ]);
 
       const uData = uRes.ok ? await uRes.json() : { users: [] };
       const rData = rRes.ok ? await rRes.json() : { reservations: [] };
       const iData = iRes.ok ? await iRes.json() : { inscriptions: [] };
-      const sData = sRes.ok ? await sRes.json() : { salles: [] };
-      const tData = tRes.ok ? await tRes.json() : { tables: [] };
 
       setUsers(uData.users || []);
       setReservations(rData.reservations || []);
       setInscriptions(iData.inscriptions || []);
-      setSalles(sData.salles || []);
-      setTables(tData.tables || []);
 
       // Charger l'historique des achats depuis localStorage
       try {
@@ -353,64 +341,6 @@ function AdminDashboard({ user, setUser }) {
     } catch { showToast("Erreur de connexion au serveur.", "error"); }
   };
 
-  /* ── Tarifs (salles & tables) ── */
-  const tarifKey = (type, id) => `${type}-${id}`;
-
-  const getTarifValue = (type, item) => {
-    const key = tarifKey(type, item.id);
-    return key in tarifEdits ? tarifEdits[key] : (item.tarif_horaire ?? 0);
-  };
-
-  const setTarifValue = (type, item, value) => {
-    setTarifEdits((prev) => ({ ...prev, [tarifKey(type, item.id)]: value }));
-  };
-
-  const saveTarif = async (type, item) => {
-    const key = tarifKey(type, item.id);
-    const rawVal = tarifEdits[key];
-    const val = Number(rawVal);
-    if (rawVal === undefined || Number.isNaN(val) || val < 0) {
-      return showToast("Tarif invalide.", "error");
-    }
-    setTarifSaving((prev) => ({ ...prev, [key]: true }));
-    try {
-      const url = type === "salle" ? `${API}/coworking/salles/${item.id}` : `${API}/coworking/tables/${item.id}`;
-      const body = type === "salle"
-        ? { nom: item.nom, capacite: Number(item.capacite), disponible: item.disponible !== false, tarif_horaire: val }
-        : { nom: item.nom, emplacement_id: item.emplacement_id, statut: item.statut || "Libre", tarif_horaire: val };
-
-      const res = await fetch(url, { method: "PUT", headers: authHeaders(), body: JSON.stringify(body) });
-      const resData = await res.json().catch(() => null);
-      if (!res.ok) {
-        return showToast(resData?.message || `Erreur ${res.status} lors de la mise à jour du tarif.`, "error");
-      }
-
-      setTarifEdits((prev) => { const c = { ...prev }; delete c[key]; return c; });
-      await fetchAll();
-
-      // Diagnostic : on relit la valeur fraîchement rechargée depuis le serveur
-      // (via fetchAll → GET /coworking/salles ou /tables) et on la compare à ce
-      // qu'on vient d'envoyer. Si le serveur a répondu "200 OK" mais n'a en
-      // réalité pas persisté le tarif (bug backend, colonne manquante, champ
-      // ignoré...), on prévient clairement au lieu d'afficher un faux succès.
-      const source = type === "salle" ? salles : tables;
-      const reloaded = source.find((x) => x.id === item.id);
-      const persisted = reloaded ? Number(reloaded.tarif_horaire) || 0 : null;
-      if (persisted !== val) {
-        showToast(
-          `⚠️ Le serveur a répondu "OK" mais le tarif de "${item.nom}" n'a pas été enregistré (toujours ${persisted ?? "?"} DT/h côté serveur). C'est un problème côté backend, pas dans cet écran — vérifie la route PUT ${url.replace(API, "")}.`,
-          "error"
-        );
-      } else {
-        showToast(`Tarif de "${item.nom}" mis à jour → ${val} DT/h.`);
-      }
-    } catch {
-      showToast("Erreur de connexion au serveur.", "error");
-    } finally {
-      setTarifSaving((prev) => ({ ...prev, [key]: false }));
-    }
-  };
-
   /* ── Stats data ── */
   const roleStats = [
     { label: "Utilisateurs", val: users.filter((u) => u.role === "user").length },
@@ -443,19 +373,38 @@ function AdminDashboard({ user, setUser }) {
     { id: "calendrier",   label: "Calendrier",    icon: "🗓", count: null,                       pending: 0 },
     { id: "inscriptions", label: "Inscriptions",  icon: "🎓", count: pendingInscriptions.length,  pending: pendingInscriptions.length },
     { id: "achats",       label: "Achats",         icon: "🛒", count: purchases.length,           pending: purchases.filter(p => p.statut === "en_attente").length },
-    { id: "tarifs",       label: "Tarifs",         icon: "💰", count: salles.length + tables.length, pending: 0 },
     { id: "historique",   label: "Historique",    icon: "🕓", count: kpis.historyCount,          pending: 0 },
     { id: "stats",        label: "Statistiques",  icon: "📊", count: null,                       pending: 0 },
   ];
 
   /* ── Calendar helpers ── */
-  // Regroupe les réservations (hors refusées) par date "YYYY-MM-DD", en tenant
-  // compte du filtre utilisateur sélectionné dans l'onglet Calendrier.
-  const calReservations = reservations.filter((r) => r.statut !== "refusée");
+  // Normalise n'importe quel format de date renvoyé par l'API (ex: "2026-07-15",
+  // "2026-07-15T00:00:00.000Z", objet Date...) vers une clé locale "YYYY-MM-DD".
+  // Sans ça, si le backend renvoie un horodatage complet, la comparaison stricte
+  // avec la clé du calendrier échoue silencieusement et aucune case ne se colore.
+  const toDateKey = (val) => {
+    if (!val) return null;
+    if (typeof val === "string") {
+      // Extrait directement "YYYY-MM-DD" en tête de chaîne (ex: "2026-07-28T23:00:00.000Z"
+      // → "2026-07-28"). Important : on NE PASSE PAS par `new Date(val)` ici, car un
+      // horodatage UTC proche de minuit peut "glisser" d'un jour une fois converti en
+      // heure locale (ex: 23:00 UTC = 00:00 le lendemain à Tunis, UTC+1).
+      const match = val.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (match) return match[1];
+    }
+    const d = new Date(val);
+    if (Number.isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  // Regroupe les réservations par date "YYYY-MM-DD", en tenant compte du
+  // filtre utilisateur sélectionné dans l'onglet Calendrier.
+  const calReservations = reservations;
   const reservationsByDate = calReservations.reduce((acc, r) => {
-    if (!r.date) return acc;
+    const key = toDateKey(r.date);
+    if (!key) return acc;
     if (calUserFilter !== "tous" && String(r.user_id) !== String(calUserFilter)) return acc;
-    (acc[r.date] = acc[r.date] || []).push(r);
+    (acc[key] = acc[key] || []).push(r);
     return acc;
   }, {});
 
@@ -788,8 +737,18 @@ function AdminDashboard({ user, setUser }) {
                       const dayReservs = reservationsByDate[dStr] || [];
                       const hasPending = dayReservs.some((r) => !r.statut || r.statut === "en_attente");
                       const hasAccepted = dayReservs.some((r) => r.statut === "acceptée");
+                      const hasRefused = dayReservs.some((r) => r.statut === "refusée");
                       const isToday = dStr === todayStr;
                       const isSelected = dStr === calSelectedDate;
+
+                      // Couleur de fond : vert si acceptée, rouge si refusée,
+                      // dégradé si les deux sont présentes le même jour, orange si en attente uniquement.
+                      let dayBg = "#fff";
+                      if (hasAccepted && hasRefused) dayBg = "linear-gradient(135deg, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.18) 50%, rgba(239,68,68,0.18) 50%, rgba(239,68,68,0.18) 100%)";
+                      else if (hasAccepted) dayBg = "rgba(34,197,94,0.16)";
+                      else if (hasRefused) dayBg = "rgba(239,68,68,0.16)";
+                      else if (hasPending) dayBg = "rgba(245,158,11,0.10)";
+
                       return (
                         <button
                           key={i}
@@ -797,7 +756,7 @@ function AdminDashboard({ user, setUser }) {
                           style={{
                             aspectRatio: "1", borderRadius: 10, position: "relative",
                             border: isSelected ? "2px solid #1a6fc4" : isToday ? "1.5px solid #1a6fc4" : "1px solid #e3eefb",
-                            background: isSelected ? "rgba(26,111,196,0.12)" : "#fff",
+                            background: isSelected ? "rgba(26,111,196,0.12)" : dayBg,
                             cursor: "pointer", fontSize: "0.82rem", color: "#0b3d78",
                             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
                           }}
@@ -807,6 +766,7 @@ function AdminDashboard({ user, setUser }) {
                             <span style={{ display: "flex", gap: 2 }}>
                               {hasPending && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />}
                               {hasAccepted && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />}
+                              {hasRefused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />}
                             </span>
                           )}
                         </button>
@@ -816,6 +776,7 @@ function AdminDashboard({ user, setUser }) {
                   <div style={{ display: "flex", gap: 14, marginTop: 14, fontSize: "0.75rem", color: "#5a7ba6", flexWrap: "wrap" }}>
                     <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#f59e0b", marginRight: 5 }} />En attente</span>
                     <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#22c55e", marginRight: 5 }} />Acceptée</span>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#ef4444", marginRight: 5 }} />Refusée</span>
                   </div>
                 </div>
 
@@ -840,7 +801,11 @@ function AdminDashboard({ user, setUser }) {
                       {selectedList.map((r, i) => (
                         <div className="adm-list-card" key={r.id} style={{
                           animationDelay: `${i * 0.05}s`,
-                          borderLeft: `4px solid ${r.statut === "acceptée" ? "#22c55e" : "#f59e0b"}`,
+                          borderLeft: `4px solid ${
+                            r.statut === "acceptée" ? "#22c55e" :
+                            r.statut === "refusée"  ? "#ef4444" :
+                            "#f59e0b"
+                          }`,
                         }}>
                           <div className="adm-list-left">
                             <div className="adm-list-icon">{r.type === "salle" ? "🏢" : "🪑"}</div>
@@ -853,8 +818,14 @@ function AdminDashboard({ user, setUser }) {
                             </div>
                           </div>
                           <div className="adm-list-right">
-                            <span className={`adm-badge ${r.statut === "acceptée" ? "badge-actif" : "badge-suspendu"}`}>
-                              {r.statut === "acceptée" ? "✅ Acceptée" : "⏳ En attente"}
+                            <span className={`adm-badge ${
+                              r.statut === "acceptée" ? "badge-actif" :
+                              r.statut === "refusée"  ? "badge-inactif" :
+                              "badge-suspendu"
+                            }`}>
+                              {r.statut === "acceptée" ? "✅ Acceptée" :
+                               r.statut === "refusée"  ? "❌ Refusée" :
+                               "⏳ En attente"}
                             </span>
                             <button className="adm-btn-sm adm-btn-edit" onClick={() => setResDetails(r)}>🔍 Détails</button>
                             {(!r.statut || r.statut === "en_attente") && (
@@ -1097,137 +1068,6 @@ function AdminDashboard({ user, setUser }) {
         )}
 
         {/* ══ TAB: TARIFS ══ */}
-        {activeTab === "tarifs" && (
-          <>
-            <div className="adm-toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
-              <h2 className="adm-section-title">Gestion des tarifs horaires</h2>
-            </div>
-            <p style={{ color: "#5a7ba6", fontSize: "0.85rem", margin: "-8px 0 18px" }}>
-              Modifie librement le tarif horaire (DT/h) de chaque salle ou table, puis clique sur
-              « Enregistrer » pour appliquer le changement. Les nouveaux tarifs s'appliquent aux
-              prochaines réservations.
-            </p>
-
-            {/* Salles */}
-            <h3 className="adm-section-title" style={{ fontSize: "1rem", marginBottom: 10 }}>🏢 Salles</h3>
-            {salles.length === 0 ? (
-              <div className="adm-empty" style={{ padding: 20 }}>
-                <p>Aucune salle enregistrée.</p>
-              </div>
-            ) : (
-              <div className="adm-table-wrap" style={{ marginBottom: 28 }}>
-                <table className="adm-table">
-                  <thead>
-                    <tr>
-                      <th>Nom</th>
-                      <th>Capacité</th>
-                      <th>Disponible</th>
-                      <th>Tarif actuel</th>
-                      <th>Nouveau tarif (DT/h)</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {salles.map((s) => {
-                      const key = tarifKey("salle", s.id);
-                      const edited = tarifEdits[key] !== undefined && Number(tarifEdits[key]) !== Number(s.tarif_horaire || 0);
-                      return (
-                        <tr key={s.id}>
-                          <td>{s.nom}</td>
-                          <td>{s.capacite ?? "—"}</td>
-                          <td>
-                            <span className={`adm-badge ${s.disponible !== false ? "badge-actif" : "badge-inactif"}`}>
-                              {s.disponible !== false ? "Oui" : "Non"}
-                            </span>
-                          </td>
-                          <td>{Number(s.tarif_horaire) || 0} DT/h</td>
-                          <td>
-                            <input
-                              type="number" min="0" step="0.5"
-                              className="adm-form-input"
-                              style={{ width: 110 }}
-                              value={getTarifValue("salle", s)}
-                              onChange={(e) => setTarifValue("salle", s, e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="adm-btn-sm adm-btn-save"
-                              disabled={!edited || tarifSaving[key]}
-                              style={{ opacity: !edited || tarifSaving[key] ? 0.5 : 1 }}
-                              onClick={() => saveTarif("salle", s)}
-                            >
-                              {tarifSaving[key] ? "…" : "💾 Enregistrer"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Tables */}
-            <h3 className="adm-section-title" style={{ fontSize: "1rem", marginBottom: 10 }}>🪑 Tables</h3>
-            {tables.length === 0 ? (
-              <div className="adm-empty" style={{ padding: 20 }}>
-                <p>Aucune table enregistrée.</p>
-              </div>
-            ) : (
-              <div className="adm-table-wrap">
-                <table className="adm-table">
-                  <thead>
-                    <tr>
-                      <th>Nom</th>
-                      <th>Statut</th>
-                      <th>Tarif actuel</th>
-                      <th>Nouveau tarif (DT/h)</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tables.map((t) => {
-                      const key = tarifKey("table", t.id);
-                      const edited = tarifEdits[key] !== undefined && Number(tarifEdits[key]) !== Number(t.tarif_horaire || 0);
-                      return (
-                        <tr key={t.id}>
-                          <td>{t.nom}</td>
-                          <td>
-                            <span className={`adm-badge ${t.statut === "Libre" ? "badge-actif" : "badge-suspendu"}`}>
-                              {t.statut || "—"}
-                            </span>
-                          </td>
-                          <td>{Number(t.tarif_horaire) || 0} DT/h</td>
-                          <td>
-                            <input
-                              type="number" min="0" step="0.5"
-                              className="adm-form-input"
-                              style={{ width: 110 }}
-                              value={getTarifValue("table", t)}
-                              onChange={(e) => setTarifValue("table", t, e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="adm-btn-sm adm-btn-save"
-                              disabled={!edited || tarifSaving[key]}
-                              style={{ opacity: !edited || tarifSaving[key] ? 0.5 : 1 }}
-                              onClick={() => saveTarif("table", t)}
-                            >
-                              {tarifSaving[key] ? "…" : "💾 Enregistrer"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-
         {/* ══ TAB: HISTORIQUE ══ */}
         {activeTab === "historique" && (
           <>
@@ -1344,19 +1184,17 @@ function AdminDashboard({ user, setUser }) {
                           {isReserv && (
                             <button className="adm-btn-sm adm-btn-edit" onClick={() => setResDetails(item)}>🔍 Détails</button>
                           )}
-                          {/* Superadmin can still delete from history */}
-                          {isSuperAdmin && (
-                            <button
-                              className="adm-btn-sm adm-btn-del"
-                              onClick={() =>
-                                isReserv
-                                  ? deleteReservation(item.id)
-                                  : deleteInscription(item.id)
-                              }
-                            >
-                              🗑 Supprimer
-                            </button>
-                          )}
+                          {/* Suppression libre depuis l'historique */}
+                          <button
+                            className="adm-btn-sm adm-btn-del"
+                            onClick={() =>
+                              isReserv
+                                ? deleteReservation(item.id)
+                                : deleteInscription(item.id)
+                            }
+                          >
+                            🗑 Supprimer
+                          </button>
                         </div>
                       </div>
                     );

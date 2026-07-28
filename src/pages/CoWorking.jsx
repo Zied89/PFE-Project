@@ -11,7 +11,7 @@ const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-const ALL_TABS = ["Salles", "Emplacements", "Tables", "Mes Réservations"];
+const ALL_TABS = ["Salles", "Emplacements", "Mes Réservations"];
 
 function Modal({ title, onClose, children }) {
   return (
@@ -47,6 +47,16 @@ function Coworking({ user }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  // Sélection multiple dans "Mes Réservations" pour suppression groupée
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedResa, setSelectedResa] = useState(new Set());
+  const toggleSelectResa = (id) => {
+    setSelectedResa(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const [reservModal, setReservModal] = useState(null);
   // `dates` remplace l'ancien champ unique `date` : l'utilisateur peut sélectionner
   // 1 ou plusieurs jours dans le mini-calendrier de réservation.
@@ -85,7 +95,10 @@ function Coworking({ user }) {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ── CRUD helpers ───────────────────────────────────────────────────────────
-  const openAdd = (type) => { setForm({}); setModal({ type, mode: "add" }); };
+  const openAdd = (type, options = {}) => {
+    setForm(options.form || {});
+    setModal({ type, mode: "add", contextSalleId: options.contextSalleId });
+  };
   const openEdit = (type, data) => { setForm({ ...data }); setModal({ type, mode: "edit", data }); };
   const closeModal = () => { setModal(null); setForm({}); };
 
@@ -107,7 +120,7 @@ function Coworking({ user }) {
       url = isEdit ? `${API}/coworking/emplacements/${modal.data.id}` : `${API}/coworking/emplacements`;
       body = { nom: form.nom, salle_id: Number(form.salle_id), places: Number(form.places) };
     } else if (modal.type === "table") {
-      if (!form.nom || !form.emplacement_id || !form.statut) return;
+      if (!form.nom || !form.emplacement_id) return;
       url = isEdit ? `${API}/coworking/tables/${modal.data.id}` : `${API}/coworking/tables`;
       body = {
         nom: form.nom,
@@ -132,17 +145,37 @@ function Coworking({ user }) {
   };
 
   const handleDelete = async () => {
-    const { type, id } = deleteConfirm;
-    const endpoints = { salle: "salles", emplacement: "emplacements", table: "tables" };
+    const { type, id, ids } = deleteConfirm;
+    const endpoints = { salle: "salles", emplacement: "emplacements", table: "tables", reservation: "reservations" };
+
+    // Suppression groupée (plusieurs réservations sélectionnées à la fois)
+    if (type === "reservations-bulk") {
+      try {
+        await Promise.all(
+          ids.map(rid =>
+            fetch(`${API}/coworking/reservations/${rid}`, { method: "DELETE", headers: authHeaders() })
+          )
+        );
+        setDeleteConfirm(null);
+        setSelectedResa(new Set());
+        setSelectMode(false);
+        fetchAll();
+        showSuccess(`${ids.length} réservation${ids.length > 1 ? "s" : ""} supprimée${ids.length > 1 ? "s" : ""}.`);
+      } catch {
+        setError("Erreur lors de la suppression des réservations sélectionnées.");
+      }
+      return;
+    }
+
     try {
       await fetch(`${API}/coworking/${endpoints[type]}/${id}`, {
         method: "DELETE", headers: authHeaders(),
       });
       setDeleteConfirm(null);
       fetchAll();
-      showSuccess("Suppression effectuée.");
+      showSuccess(type === "reservation" ? "Réservation supprimée." : "Suppression effectuée.");
     } catch {
-      setError("Erreur lors de la suppression.");
+      setError(type === "reservation" ? "Erreur lors de la suppression de la réservation." : "Erreur lors de la suppression.");
     }
   };
 
@@ -316,12 +349,16 @@ function Coworking({ user }) {
         });
         if (!res.ok) {
           const d = await res.json().catch(() => null);
-          echouees.push({ date, message: d?.message || "déjà indisponible" });
+          // On essaie plusieurs clés possibles côté backend (message, error, detail, erreur)
+          // avant de retomber sur un texte générique qui inclut au moins le code HTTP,
+          // pour ne jamais masquer la vraie cause d'un échec (auth, validation, serveur...).
+          const raw = d?.message || d?.error || d?.detail || d?.erreur || null;
+          echouees.push({ date, status: res.status, message: raw || `échec (HTTP ${res.status})` });
         } else {
           reussies.push(date);
         }
-      } catch {
-        echouees.push({ date, message: "erreur réseau" });
+      } catch (err) {
+        echouees.push({ date, status: null, message: `erreur réseau (${err?.message || "connexion impossible"})` });
       }
     }
 
@@ -331,27 +368,26 @@ function Coworking({ user }) {
       const jours = reussies.length > 1 ? `${reussies.length} jours` : "1 jour";
       showSuccess(
         `Demande de réservation pour "${reservModal.item.nom}" envoyée pour ${jours} — en attente de validation par l'admin.` +
-        (echouees.length > 0 ? ` (${echouees.length} jour(s) déjà indisponible(s) n'ont pas été réservés.)` : "")
+        (echouees.length > 0
+          ? ` (${echouees.length} jour(s) non réservé(s) : ${echouees.map(e => `${e.date} — ${e.message}`).join(" ; ")})`
+          : "")
       );
     } else {
-      setError(`Aucune réservation créée — les jours choisis sont déjà indisponibles.`);
+      // On affiche désormais le détail réel de chaque échec (statut HTTP + message backend)
+      // au lieu d'un texte générique qui prétendait toujours "déjà indisponible".
+      const detail = echouees.map(e => `${e.date} — ${e.message}`).join(" ; ");
+      setError(`Aucune réservation créée. Détail : ${detail}`);
     }
   };
 
-  const annulerReservation = async (id) => {
-    try {
-      await fetch(`${API}/coworking/reservations/${id}`, {
-        method: "DELETE", headers: authHeaders(),
-      });
-      fetchAll();
-      showSuccess("Réservation annulée.");
-    } catch {
-      setError("Erreur lors de l'annulation.");
-    }
-  };
 
   const getSalleName = (id) => salles.find(s => s.id === id)?.nom || "—";
   const getEmplacementName = (id) => emplacements.find(e => e.id === id)?.nom || "—";
+  const getTablesForSalle = (salleId) =>
+    tables.filter((t) => {
+      const empl = emplacements.find((e) => e.id === t.emplacement_id);
+      return empl && empl.salle_id === salleId;
+    });
 
   // ── Calcul du frais de réservation ───────────────────────────────────────
   // Nombre d'heures (décimal) entre deux horaires "HH:MM"
@@ -485,34 +521,97 @@ function Coworking({ user }) {
           <>
             <div className="cw-toolbar">
               <h2 className="cw-section-title">Liste des salles</h2>
-              {isAdmin && <button className="cw-btn-add" onClick={() => openAdd("salle")}>+ Ajouter</button>}
+              {isAdmin && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="cw-btn-add" onClick={() => openAdd("salle")}>+ Ajouter une salle</button>
+                  <button className="cw-btn-add" onClick={() => openAdd("table", { form: { statut: "Libre" } })}>+ Ajouter une table</button>
+                </div>
+              )}
             </div>
             <div className="cw-grid">
-              {salles.map((s, i) => (
-                <div className="cw-card" key={s.id} style={{ animationDelay: `${i * 0.07}s` }}>
-                  <div className="cw-card-top">
-                    <div className="cw-card-icon">🏢</div>
-                    <span className={`cw-badge ${s.disponible ? "badge--green" : "badge--red"}`}>
-                      {s.disponible ? "Disponible" : "Indisponible"}
-                    </span>
-                  </div>
-                  <h3 className="cw-card-title">{s.nom}</h3>
-                  <p className="cw-card-meta">Capacité : <strong>{s.capacite} personnes</strong></p>
-                  <p className="cw-card-meta">Tarif : <strong>{Number(s.tarif_horaire) || 0} DT/h</strong></p>
-                  {isAdmin && (
-                    <div className="cw-card-actions">
-                      <button className="cw-btn-edit" onClick={() => openEdit("salle", { ...s, disponible: !!s.disponible })}>✏ Modifier</button>
-                      <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "salle", id: s.id, nom: s.nom })}>🗑</button>
+              {salles.map((s, i) => {
+                const salleTables = getTablesForSalle(s.id);
+                return (
+                  <div className="cw-card" key={s.id} style={{ animationDelay: `${i * 0.07}s` }}>
+                    <div className="cw-card-top">
+                      <div className="cw-card-icon">🏢</div>
+                      <span className={`cw-badge ${s.disponible ? "badge--green" : "badge--red"}`}>
+                        {s.disponible ? "Disponible" : "Indisponible"}
+                      </span>
                     </div>
-                  )}
-                  {!isAdmin && s.disponible ? (
-                    <button className="cw-btn-reserv" onClick={() => openReserv("salle", s)}>
-                      📅 Réserver cette salle
-                    </button>
-                  ) : null}
-                  <div className="cw-card-line" />
-                </div>
-              ))}
+                    <h3 className="cw-card-title">{s.nom}</h3>
+                    <p className="cw-card-meta">Capacité : <strong>{s.capacite} personnes</strong></p>
+                    <p className="cw-card-meta">Tarif : <strong>{Number(s.tarif_horaire) || 0} DT/h</strong></p>
+                    {isAdmin && (
+                      <div className="cw-card-actions">
+                        <button className="cw-btn-edit" onClick={() => openEdit("salle", { ...s, disponible: !!s.disponible })}>✏ Modifier</button>
+                        <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "salle", id: s.id, nom: s.nom })}>🗑</button>
+                      </div>
+                    )}
+                    {!isAdmin && s.disponible ? (
+                      <button className="cw-btn-reserv" onClick={() => openReserv("salle", s)}>
+                        📅 Réserver cette salle
+                      </button>
+                    ) : null}
+                    {isAdmin && (
+                      <p className="cw-card-meta" style={{ marginTop: 8, opacity: 0.75 }}>
+                        🪑 {salleTables.length} table{salleTables.length > 1 ? "s" : ""} — gérables via "✏ Modifier"
+                      </p>
+                    )}
+
+                    {/* ── Tables de cette salle ── (visible seulement côté utilisateur ;
+                         côté admin, la gestion des tables se fait via le bouton "✏ Modifier") */}
+                    {!isAdmin && salleTables.length > 0 && (
+                      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                        <p className="cw-card-meta" style={{ fontWeight: 600, marginBottom: 8 }}>
+                          🪑 Tables ({salleTables.length})
+                        </p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {salleTables.map((t) => (
+                            <div
+                              key={t.id}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 8,
+                                padding: "8px 10px",
+                                borderRadius: 10,
+                                background: "rgba(0,0,0,0.03)",
+                              }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <strong style={{ fontSize: 14 }}>{t.nom}</strong>
+                                  <span className={`cw-badge ${t.statut === "Libre" ? "badge--green" : t.statut === "Occupée" ? "badge--red" : "badge--amber"}`}>
+                                    {t.statut}
+                                  </span>
+                                </div>
+                                <p className="cw-card-meta" style={{ margin: "2px 0 0" }}>
+                                  {getTarifHoraire("table", t)} DT/h
+                                </p>
+                              </div>
+                              {isAdmin && (
+                                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                                  <button className="cw-btn-edit" onClick={() => openEdit("table", t)}>✏</button>
+                                  <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {!isAdmin && (
+                          <p className="cw-card-meta" style={{ marginTop: 8, opacity: 0.75, fontSize: "0.78rem" }}>
+                            💡 Choisissez vos tables directement dans le formulaire "📅 Réserver cette salle".
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="cw-card-line" />
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
@@ -546,48 +645,103 @@ function Coworking({ user }) {
           </>
         )}
 
-        {/* ── TABLES ── */}
-        {activeTab === "Tables" && (
-          <>
-            <div className="cw-toolbar">
-              <h2 className="cw-section-title">Liste des tables</h2>
-              {isAdmin && <button className="cw-btn-add" onClick={() => openAdd("table")}>+ Ajouter</button>}
-            </div>
-            <div className="cw-grid">
-              {tables.map((t, i) => (
-                <div className="cw-card" key={t.id} style={{ animationDelay: `${i * 0.07}s` }}>
-                  <div className="cw-card-top">
-                    <div className="cw-card-icon">🪑</div>
-                    <span className={`cw-badge ${t.statut === "Libre" ? "badge--green" : t.statut === "Occupée" ? "badge--red" : "badge--amber"}`}>
-                      {t.statut}
-                    </span>
-                  </div>
-                  <h3 className="cw-card-title">{t.nom}</h3>
-                  <p className="cw-card-meta">Emplacement : <strong>{t.emplacement_nom || getEmplacementName(t.emplacement_id)}</strong></p>
-                  <p className="cw-card-meta">Tarif : <strong>{getTarifHoraire("table", t)} DT/h</strong></p>
-                  {isAdmin && (
-                    <div className="cw-card-actions">
-                      <button className="cw-btn-edit" onClick={() => openEdit("table", t)}>✏ Modifier</button>
-                      <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
-                    </div>
-                  )}
-                  {!isAdmin && t.statut === "Libre" && (
-                    <button className="cw-btn-reserv" onClick={() => openReserv("table", t)}>
-                      📅 Réserver cette table
-                    </button>
-                  )}
-                  <div className="cw-card-line" />
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
         {/* ── MES RÉSERVATIONS ── */}
         {activeTab === "Mes Réservations" && (
           <>
-            <div className="cw-toolbar">
+            <div className="cw-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
               <h2 className="cw-section-title">Mes réservations</h2>
+
+              {reservations.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  {!selectMode ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectMode(true)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        background: "rgba(255,255,255,0.1)",
+                        border: "1px solid rgba(255,255,255,0.35)",
+                        color: "#fff",
+                        borderRadius: 8,
+                        padding: "8px 14px",
+                        fontSize: "0.88rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      🗑 Supprimer…
+                    </button>
+                  ) : (
+                    <>
+                      <label
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          fontSize: "0.88rem",
+                          fontWeight: 600,
+                          color: "#fff",
+                          cursor: "pointer",
+                          background: "rgba(255,255,255,0.1)",
+                          border: "1px solid rgba(255,255,255,0.3)",
+                          borderRadius: 8,
+                          padding: "8px 12px",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedResa.size === reservations.length && reservations.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedResa(new Set(reservations.map(r => r.id)));
+                            else setSelectedResa(new Set());
+                          }}
+                          style={{ width: 16, height: 16, cursor: "pointer" }}
+                        />
+                        Tout sélectionner
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectMode(false); setSelectedResa(new Set()); }}
+                        style={{
+                          background: "rgba(255,255,255,0.08)",
+                          border: "1px solid rgba(255,255,255,0.35)",
+                          color: "#fff",
+                          borderRadius: 8,
+                          padding: "8px 14px",
+                          fontSize: "0.88rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedResa.size === 0}
+                        onClick={() =>
+                          setDeleteConfirm({
+                            type: "reservations-bulk",
+                            ids: Array.from(selectedResa),
+                            nom: `${selectedResa.size} réservation${selectedResa.size > 1 ? "s" : ""}`,
+                          })
+                        }
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          background: selectedResa.size === 0 ? "rgba(148,163,184,0.25)" : "#ef4444",
+                          border: selectedResa.size === 0 ? "1px solid rgba(148,163,184,0.4)" : "1px solid #ef4444",
+                          color: selectedResa.size === 0 ? "rgba(255,255,255,0.55)" : "#fff",
+                          borderRadius: 8,
+                          padding: "8px 14px",
+                          fontSize: "0.88rem",
+                          fontWeight: 700,
+                          cursor: selectedResa.size === 0 ? "not-allowed" : "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        🗑 Supprimer la sélection ({selectedResa.size})
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             {reservations.length === 0 ? (
               <div className="cw-empty">
@@ -598,7 +752,26 @@ function Coworking({ user }) {
             ) : (
               <div className="cw-reserv-list">
                 {reservations.map((r, i) => (
-                  <div className="cw-reserv-card" key={r.id} style={{ animationDelay: `${i * 0.07}s` }}>
+                  <div
+                    className="cw-reserv-card"
+                    key={r.id}
+                    style={{
+                      animationDelay: `${i * 0.07}s`,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      border: selectMode && selectedResa.has(r.id) ? "1px solid #ef4444" : undefined,
+                      background: selectMode && selectedResa.has(r.id) ? "rgba(239,68,68,0.06)" : undefined,
+                    }}
+                  >
+                    {selectMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedResa.has(r.id)}
+                        onChange={() => toggleSelectResa(r.id)}
+                        style={{ marginTop: 6, flexShrink: 0, width: 18, height: 18, cursor: "pointer" }}
+                      />
+                    )}
                     <div className="cw-reserv-left">
                       <div className="cw-reserv-icon">{r.type === "salle" ? "🏢" : "🪑"}</div>
                       <div>
@@ -620,7 +793,17 @@ function Coworking({ user }) {
                         )}
                       </div>
                     </div>
-                    <div className="cw-reserv-right">
+                    <div
+                      className="cw-reserv-right"
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: 8,
+                        flexShrink: 0,
+                        marginLeft: "auto",
+                      }}
+                    >
                       <span className={`cw-badge ${
                         r.statut === "acceptée" ? "badge--green" :
                         r.statut === "refusée" ? "badge--red" :
@@ -630,8 +813,21 @@ function Coworking({ user }) {
                          r.statut === "refusée"  ? "❌ Refusée"  :
                          "⏳ En attente"}
                       </span>
-                      {r.statut !== "refusée" && (
-                        <button className="cw-btn-annuler" onClick={() => annulerReservation(r.id)}>Annuler</button>
+                      {!selectMode && (
+                        <button
+                          type="button"
+                          className="cw-btn-annuler"
+                          style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                          onClick={() =>
+                            setDeleteConfirm({
+                              type: "reservation",
+                              id: r.id,
+                              nom: `${r.item_nom} (${r.date}, ${r.heure_debut}–${r.heure_fin})`,
+                            })
+                          }
+                        >
+                          🗑 Supprimer
+                        </button>
                       )}
                     </div>
                     <div className="cw-card-line" />
@@ -658,6 +854,62 @@ function Coworking({ user }) {
             </select>
             <label>Tarif horaire (DT/h)</label>
             <input type="number" min="0" step="0.5" placeholder="Ex: 20" value={form.tarif_horaire === undefined || form.tarif_horaire === null ? "" : form.tarif_horaire} onChange={e => setForm(f => ({ ...f, tarif_horaire: e.target.value }))} />
+
+            {/* ── Tables de cette salle (gestion directement depuis la modale) ── */}
+            {modal.mode === "edit" && (
+              <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <label style={{ margin: 0 }}>Tables de cette salle</label>
+                  <button
+                    type="button"
+                    className="cw-btn-add"
+                    style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                    onClick={() => openAdd("table", { contextSalleId: modal.data.id, form: { statut: "Libre" } })}
+                  >
+                    + Ajouter une table
+                  </button>
+                </div>
+                {(() => {
+                  const salleTables = getTablesOfSalle(modal.data.id);
+                  if (salleTables.length === 0) {
+                    return <p className="cw-card-meta" style={{ marginTop: 0 }}>Aucune table pour cette salle.</p>;
+                  }
+                  return (
+                    <div
+                      className="cw-scroll-thin"
+                      style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto" }}
+                    >
+                      {salleTables.map((t) => (
+                        <div
+                          key={t.id}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                            padding: "8px 10px", borderRadius: 10, background: "rgba(0,0,0,0.03)",
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <strong style={{ fontSize: 14 }}>{t.nom}</strong>
+                              <span className={`cw-badge ${t.statut === "Libre" ? "badge--green" : t.statut === "Occupée" ? "badge--red" : "badge--amber"}`}>
+                                {t.statut}
+                              </span>
+                            </div>
+                            <p className="cw-card-meta" style={{ margin: "2px 0 0" }}>
+                              {getEmplacementName(t.emplacement_id)} · {getTarifHoraire("table", t)} DT/h
+                            </p>
+                          </div>
+                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                            <button type="button" className="cw-btn-edit" onClick={() => openEdit("table", t)}>✏</button>
+                            <button type="button" className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             <div className="cw-form-actions">
               <button className="cw-btn-cancel" onClick={closeModal}>Annuler</button>
               <button className="cw-btn-save" onClick={handleSave}>Enregistrer</button>
@@ -694,10 +946,37 @@ function Coworking({ user }) {
             <label>Nom de la table</label>
             <input type="text" placeholder="Ex: Table 05" value={form.nom || ""} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
             <label>Emplacement</label>
-            <select value={form.emplacement_id || ""} onChange={e => setForm(f => ({ ...f, emplacement_id: e.target.value }))}>
-              <option value="">-- Choisir un emplacement --</option>
-              {emplacements.map(em => <option key={em.id} value={em.id}>{em.nom}</option>)}
-            </select>
+            {(() => {
+              const emplacementOptions = modal.contextSalleId
+                ? emplacements.filter((em) => em.salle_id === modal.contextSalleId)
+                : emplacements;
+              if (modal.contextSalleId && emplacementOptions.length === 0) {
+                return (
+                  <div style={{
+                    background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
+                    borderRadius: 8, padding: "10px 12px", fontSize: "0.82rem",
+                  }}>
+                    Cette salle n'a encore aucun emplacement — il en faut un pour y rattacher une table.
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        type="button"
+                        className="cw-btn-add"
+                        style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                        onClick={() => openAdd("emplacement", { form: { salle_id: modal.contextSalleId } })}
+                      >
+                        + Créer un emplacement pour cette salle
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <select value={form.emplacement_id || ""} onChange={e => setForm(f => ({ ...f, emplacement_id: e.target.value }))}>
+                  <option value="">-- Choisir un emplacement --</option>
+                  {emplacementOptions.map(em => <option key={em.id} value={em.id}>{em.nom}</option>)}
+                </select>
+              );
+            })()}
             <label>Statut</label>
             <select value={form.statut || "Libre"} onChange={e => setForm(f => ({ ...f, statut: e.target.value }))}>
               <option value="Libre">Libre</option>
@@ -769,10 +1048,17 @@ function Coworking({ user }) {
                       const conflitHoraire =
                         reservForm.heure_debut && reservForm.heure_fin &&
                         aConflitConfirme(dStr, reservForm.heure_debut, reservForm.heure_fin);
-                      const aDesCreneauxConfirmes = creneauxConfirmesDuJour(dStr).length > 0;
+                      const creneauxJour = creneauxConfirmesDuJour(dStr);
+                      const aDesCreneauxConfirmes = creneauxJour.length > 0;
+                      // Jour "partiellement réservé" : au moins un créneau confirmé ce jour-là,
+                      // mais pas bloqué en entier et pas en conflit avec l'horaire choisi.
+                      const estPartiellementReserve = !isPast && aDesCreneauxConfirmes && !journeeBloquee && !conflitHoraire;
                       const isSelected = reservForm.dates.includes(dStr);
                       const disabled = isPast || journeeBloquee || (isSelected ? false : conflitHoraire);
                       const isOccupied = journeeBloquee || conflitHoraire;
+                      const heuresReserveesLabel = creneauxJour
+                        .map((c) => `${c.heure_debut}–${c.heure_fin}`)
+                        .join(", ");
                       return (
                         <button
                           type="button"
@@ -781,22 +1067,22 @@ function Coworking({ user }) {
                           onClick={() => toggleReservDate(dStr)}
                           title={
                             journeeBloquee ? "Journée entièrement indisponible" :
-                            conflitHoraire ? "Cet horaire chevauche une réservation déjà confirmée" :
-                            aDesCreneauxConfirmes ? "Certains créneaux de ce jour sont déjà pris — vérifiez l'horaire" : ""
+                            conflitHoraire ? `Cet horaire chevauche une réservation déjà confirmée (${heuresReserveesLabel})` :
+                            aDesCreneauxConfirmes ? `Heure(s) déjà réservée(s) : ${heuresReserveesLabel}` : ""
                           }
                           style={{
                             aspectRatio: "1", minWidth: 0, padding: 0, borderRadius: 5, fontSize: "0.64rem",
                             position: "relative",
-                            border: isSelected ? "1.5px solid #4dd6a0" : "1px solid rgba(0,0,0,0.08)",
-                            background: isSelected ? "#4dd6a0" : isOccupied ? "rgba(239,68,68,0.12)" : "transparent",
-                            color: isSelected ? "#08321f" : isOccupied ? "#ef4444" : isPast ? "#b7c3d9" : "inherit",
+                            border: isSelected ? "1.5px solid #4dd6a0" : estPartiellementReserve ? "1px solid rgba(245,158,11,0.45)" : "1px solid rgba(0,0,0,0.08)",
+                            background: isSelected ? "#4dd6a0" : isOccupied ? "rgba(239,68,68,0.12)" : estPartiellementReserve ? "rgba(245,158,11,0.16)" : "transparent",
+                            color: isSelected ? "#08321f" : isOccupied ? "#ef4444" : estPartiellementReserve ? "#b45309" : isPast ? "#b7c3d9" : "inherit",
                             cursor: disabled ? "not-allowed" : "pointer",
-                            fontWeight: isSelected ? 700 : 400,
+                            fontWeight: isSelected ? 700 : estPartiellementReserve ? 600 : 400,
                             textDecoration: journeeBloquee ? "line-through" : "none",
                           }}
                         >
                           {d.getDate()}
-                          {!isPast && !journeeBloquee && !isOccupied && aDesCreneauxConfirmes && (
+                          {estPartiellementReserve && (
                             <span style={{
                               position: "absolute", bottom: 2, right: 2,
                               width: 4, height: 4, borderRadius: "50%", background: "#f59e0b",
@@ -809,7 +1095,7 @@ function Coworking({ user }) {
                   <div style={{ display: "flex", gap: 8, marginTop: 6, fontSize: "0.6rem", opacity: 0.75, flexWrap: "wrap" }}>
                     <span><span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: "#4dd6a0", marginRight: 3, verticalAlign: "middle" }} />Sélectionné</span>
                     <span><span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: "rgba(239,68,68,0.4)", marginRight: 3, verticalAlign: "middle" }} />Indisponible pour cet horaire</span>
-                    <span><span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#f59e0b", marginRight: 3, verticalAlign: "middle" }} />Partiellement réservé ce jour-là</span>
+                    <span><span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: "rgba(245,158,11,0.35)", marginRight: 3, verticalAlign: "middle" }} />Jour avec des heures déjà réservées (survolez pour les voir)</span>
                   </div>
                 </div>
               );
