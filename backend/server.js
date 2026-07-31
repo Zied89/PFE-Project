@@ -51,3 +51,4 @@ app.get(/^(?!\/api).*/, (_, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Serveur démarré sur http://localhost:${PORT}`);
 });
+app.use("/api/modules", require("./routes/modules"));

@@ -234,6 +234,24 @@ function Formation({ user }) {
             </div>
           )}
 
+        {!isAdmin && user && (
+          <button
+            onClick={() => navigate("/mes-commandes")}
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 12, padding: "0.45rem 0.9rem",
+              cursor: "pointer",
+              color: "#aaa",
+              fontSize: "0.85rem",
+              display: "flex", alignItems: "center", gap: "0.4rem",
+              transition: "all 0.2s",
+            }}
+          >
+            🧾 Mes commandes
+          </button>
+        )}
+
         {!isAdmin && (
           <button
             onClick={() => setShowCart(true)}

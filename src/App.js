@@ -9,6 +9,9 @@ import FormationDetail from "./pages/FormationDetail";
 import Coworking from "./pages/Coworking";
 import DashboardRouter from "./pages/DashboardRouter";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import MesCommandes from "./pages/MesCommandes";
+import AdminModules from "./pages/AdminModules";
+
 
 function App() {
   // ✅ sessionStorage = isolé par onglet (pas partagé entre onglets, contrairement à localStorage).
@@ -114,12 +117,32 @@ function App() {
           }
         />
 
+        {/* Mes commandes (utilisateur connecté) */}
+        <Route
+          path="/mes-commandes"
+          element={
+            <RequireAuth>
+              <MesCommandes user={user} />
+            </RequireAuth>
+          }
+        />
+
         {/* Admin */}
         <Route
           path="/admin"
           element={
             <RequireAdmin>
               <DashboardRouter user={user} setUser={handleSetUser} />
+            </RequireAdmin>
+          }
+        />
+
+        {/* Admin — gestion des modules */}
+        <Route
+          path="/admin/modules"
+          element={
+            <RequireAdmin>
+              <AdminModules user={user} />
             </RequireAdmin>
           }
         />

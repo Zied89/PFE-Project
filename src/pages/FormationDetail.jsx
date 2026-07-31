@@ -304,13 +304,7 @@ function FormationDetail({ user }) {
           {!isAdmin && (
             <button
               onClick={toggleFormationCart}
-              style={{
-                padding: "0.5rem 1.2rem", borderRadius: 24, fontWeight: 600, fontSize: "0.85rem",
-                cursor: "pointer", transition: "all 0.2s",
-                background: isFormationInCart ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)",
-                color: isFormationInCart ? "#93c5fd" : "#aaa",
-                border: isFormationInCart ? "1px solid rgba(59,130,246,0.4)" : "1px solid rgba(255,255,255,0.12)",
-              }}>
+              className={`fd-cart-btn-main${isFormationInCart ? " in-cart" : ""}`}>
               {isFormationInCart ? "✓ Formation au panier" : "🛒 Ajouter au panier"}
             </button>
           )}
@@ -347,14 +341,8 @@ function FormationDetail({ user }) {
                 {!isAdmin && (
                   <button
                     onClick={() => toggleCourseCart(course)}
-                    style={{
-                      padding: "0.4rem 1rem", borderRadius: 20, fontWeight: 600, fontSize: "0.8rem",
-                      cursor: "pointer", transition: "all 0.2s", flexShrink: 0,
-                      background: inCart ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.06)",
-                      color: inCart ? "#93c5fd" : "#888",
-                      border: inCart ? "1px solid rgba(59,130,246,0.35)" : "1px solid rgba(255,255,255,0.1)",
-                    }}>
-                    {inCart ? "✓ Au panier" : "+ Panier"}
+                    className={`fd-cart-btn-course${inCart ? " in-cart" : ""}`}>
+                    {inCart ? "✓ Au panier" : "🛒 Ajouter"}
                   </button>
                 )}
 
