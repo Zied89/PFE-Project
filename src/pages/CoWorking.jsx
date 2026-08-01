@@ -11,7 +11,7 @@ const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-const ALL_TABS = ["Salles", "Emplacements", "Mes Réservations"];
+const ALL_TABS = ["Salles", "Emplacements", "Tables", "Mes Réservations"];
 
 function Modal({ title, onClose, children }) {
   return (
@@ -597,12 +597,30 @@ function Coworking({ user }) {
                                   <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
                                 </div>
                               )}
+                              {!isAdmin && (
+                                <button
+                                  className="cw-btn-reserv"
+                                  style={{
+                                    padding: "6px 12px",
+                                    fontSize: "0.78rem",
+                                    flexShrink: 0,
+                                    whiteSpace: "nowrap",
+                                    opacity: t.statut === "Libre" ? 1 : 0.5,
+                                    cursor: t.statut === "Libre" ? "pointer" : "not-allowed",
+                                  }}
+                                  disabled={t.statut !== "Libre"}
+                                  onClick={() => openReserv("table", t)}
+                                  title={t.statut === "Libre" ? `Réserver la table ${t.nom}` : `Table indisponible (${t.statut})`}
+                                >
+                                  📅 Réserver
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
                         {!isAdmin && (
                           <p className="cw-card-meta" style={{ marginTop: 8, opacity: 0.75, fontSize: "0.78rem" }}>
-                            💡 Choisissez vos tables directement dans le formulaire "📅 Réserver cette salle".
+                            💡 Réservez une table précise avec son bouton "📅 Réserver", ou plusieurs tables à la fois via "📅 Réserver cette salle" ci-dessus.
                           </p>
                         )}
                       </div>
@@ -642,6 +660,73 @@ function Coworking({ user }) {
                 </div>
               ))}
             </div>
+          </>
+        )}
+
+        {/* ── TABLES ── */}
+        {activeTab === "Tables" && (
+          <>
+            <div className="cw-toolbar">
+              <h2 className="cw-section-title">Liste des tables</h2>
+              {isAdmin && (
+                <button className="cw-btn-add" onClick={() => openAdd("table", { form: { statut: "Libre" } })}>
+                  + Ajouter une table
+                </button>
+              )}
+            </div>
+            {tables.length === 0 ? (
+              <div className="cw-empty">
+                <div className="cw-empty-icon">🪑</div>
+                <p>Aucune table pour le moment.</p>
+                {isAdmin && <p className="cw-empty-sub">Ajoutez-en une avec le bouton ci-dessus.</p>}
+              </div>
+            ) : (
+              <div className="cw-grid">
+                {tables.map((t, i) => {
+                  const empl = emplacements.find((e) => e.id === t.emplacement_id);
+                  const salle = salles.find((s) => s.id === empl?.salle_id);
+                  return (
+                    <div className="cw-card" key={t.id} style={{ animationDelay: `${i * 0.07}s` }}>
+                      <div className="cw-card-top">
+                        <div className="cw-card-icon">🪑</div>
+                        <span className={`cw-badge ${t.statut === "Libre" ? "badge--green" : t.statut === "Occupée" ? "badge--red" : "badge--amber"}`}>
+                          {t.statut}
+                        </span>
+                      </div>
+                      <h3 className="cw-card-title">{t.nom}</h3>
+                      <p className="cw-card-meta">
+                        🏢 Salle : <strong>{salle?.nom || "—"}</strong>
+                      </p>
+                      <p className="cw-card-meta">
+                        📍 Emplacement : <strong>{empl?.nom || "—"}</strong>
+                      </p>
+                      <p className="cw-card-meta">Tarif : <strong>{getTarifHoraire("table", t)} DT/h</strong></p>
+                      {isAdmin && (
+                        <div className="cw-card-actions">
+                          <button className="cw-btn-edit" onClick={() => openEdit("table", t)}>✏ Modifier</button>
+                          <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
+                        </div>
+                      )}
+                      {!isAdmin && (
+                        <button
+                          className="cw-btn-reserv"
+                          disabled={t.statut !== "Libre"}
+                          style={{
+                            opacity: t.statut === "Libre" ? 1 : 0.5,
+                            cursor: t.statut === "Libre" ? "pointer" : "not-allowed",
+                          }}
+                          onClick={() => openReserv("table", t)}
+                          title={t.statut === "Libre" ? `Réserver la table ${t.nom}` : `Table indisponible (${t.statut})`}
+                        >
+                          📅 Réserver cette table
+                        </button>
+                      )}
+                      <div className="cw-card-line" />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
 

@@ -179,14 +179,19 @@
 
 .hero p {
   margin-top: 30px;
-  background-color: rgba(241, 15, 15, 0.8);
   display: inline-block;
-  font-family:Verdana, Geneva, Tahoma, sans-serif;
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
   color: var(--sky-700);
   padding: 12px 28px;
-  font-size: 120px;
-  font-weight: 1000;
+  font-size: 20px;
+  font-weight: 700;
   letter-spacing: 0.02em;
+  transition: transform 0.25s ease, color 0.25s ease;
+}
+
+.hero p:hover {
+  transform: translateY(-2px);
+  color: var(--sky-900, #0c4a6e);
 }
 
 @keyframes fadeUp {
@@ -250,11 +255,10 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 26px;
-  max-width: 1220px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 20px;
+  max-width: 1100px;
   margin: 32px auto;
-  padding: 0 40px;
 }
 
 /* ── Card ── */
@@ -383,7 +387,7 @@
 .cat-card strong {
   font-size: 22px;
   font-weight: 800;
-  color: var(--sky-600);
+  color: #d97706;
   display: block;
   letter-spacing: -0.02em;
 }
@@ -481,10 +485,19 @@
 }
 
 .formation-page p {
-  color: var(--sky-600);
-  font-size: 15px;
+  color: #f5a623;
+  font-size: 25px;
   font-weight: 500;
+  line-height: 1.6;
+  transition: color 0.25s ease;
 }
+
+
+ .formation-page p:hover {
+  color: white;
+
+  cursor:pointer;
+ }
 
 /* ── Confirmer inscription ── */
 .buttoninscription {
@@ -607,7 +620,7 @@
 
 /* Glass cards */
 .cat-card {
-  background: rgba(255,255,255,0.84) !important;
+  background: linear-gradient(135deg, #3945A3 0%, #355A8A 50%, #2E4F78 100%);
   border-color: rgba(186,230,253,0.60) !important;
   box-shadow: 0 6px 28px rgba(10,36,80,0.16) !important;
   backdrop-filter: blur(8px) !important;

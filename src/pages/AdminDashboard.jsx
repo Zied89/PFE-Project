@@ -408,6 +408,24 @@ function AdminDashboard({ user, setUser }) {
     return acc;
   }, {});
 
+  // À l'ouverture de l'onglet Calendrier, si aucun jour n'est encore
+  // sélectionné, on saute automatiquement sur la date de la réservation la
+  // plus récente (salle ou table, quel que soit son statut) et on l'affiche
+  // avec ses détails — l'admin n'a pas à deviner dans quel mois chercher.
+  useEffect(() => {
+    if (activeTab !== "calendrier" || calSelectedDate) return;
+    if (reservations.length === 0) return;
+    const dated = reservations
+      .map((r) => ({ r, key: toDateKey(r.date) }))
+      .filter((x) => x.key)
+      .sort((a, b) => new Date(b.r.created_at || b.key) - new Date(a.r.created_at || a.key));
+    if (dated.length === 0) return;
+    const [y, m] = dated[0].key.split("-").map(Number);
+    setCalCursor(new Date(y, m - 1, 1));
+    setCalSelectedDate(dated[0].key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, reservations]);
+
   /* ════════════════════ RENDER ════════════════════ */
   if (loading) return (
     <div className="adm-page" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>

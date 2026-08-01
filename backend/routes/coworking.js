@@ -265,7 +265,10 @@ router.post("/reservations", authMiddleware, async (req, res) => {
     const { rows } = await client.query(
       `INSERT INTO reservations
          (user_id, type, item_id, item_nom, date, heure_debut, heure_fin, statut, nb_heures, frais, table_ids)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, user_id, type, item_id, item_nom,
+                 to_char(date, 'YYYY-MM-DD') AS date,
+                 heure_debut, heure_fin, statut, nb_heures, frais, table_ids, created_at`,
       [req.user.id, type, item_id, item_nom || "", date, heure_debut, heure_fin, "en_attente", nbHeures, frais, JSON.stringify(tableIdsArr)]
     );
 
@@ -295,7 +298,7 @@ router.get("/reservations/disponibilite", authMiddleware, async (req, res) => {
 
   try {
     const { rows: creneaux } = await db.query(
-      `SELECT date, heure_debut, heure_fin, statut
+      `SELECT to_char(date, 'YYYY-MM-DD') AS date, heure_debut, heure_fin, statut
        FROM reservations
        WHERE type = $1 AND item_id = $2 AND statut <> 'refusée'
        ORDER BY date, heure_debut`,
@@ -312,7 +315,10 @@ router.get("/reservations/disponibilite", authMiddleware, async (req, res) => {
 router.get("/reservations/me", authMiddleware, async (req, res) => {
   try {
     const { rows: reservations } = await db.query(
-      "SELECT * FROM reservations WHERE user_id = $1 ORDER BY created_at DESC",
+      `SELECT id, user_id, type, item_id, item_nom,
+              to_char(date, 'YYYY-MM-DD') AS date,
+              heure_debut, heure_fin, statut, nb_heures, frais, table_ids, created_at
+       FROM reservations WHERE user_id = $1 ORDER BY created_at DESC`,
       [req.user.id]
     );
     return res.json({ reservations });
@@ -326,7 +332,10 @@ router.get("/reservations/me", authMiddleware, async (req, res) => {
 router.get("/reservations", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { rows: reservations } = await db.query(`
-      SELECT r.*, u.name AS user_name, u.email AS user_email
+      SELECT r.id, r.user_id, r.type, r.item_id, r.item_nom,
+             to_char(r.date, 'YYYY-MM-DD') AS date,
+             r.heure_debut, r.heure_fin, r.statut, r.nb_heures, r.frais, r.table_ids, r.created_at,
+             u.name AS user_name, u.email AS user_email
       FROM reservations r LEFT JOIN users u ON u.id = r.user_id
       ORDER BY r.created_at DESC
     `);

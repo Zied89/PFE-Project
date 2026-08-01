@@ -79,6 +79,13 @@ function Formation({ user }) {
 
   useEffect(() => { fetchData(); }, []);
 
+  /* ── Auto-dismiss du toast de succès ── */
+  useEffect(() => {
+    if (!successMsg) return;
+    const t = setTimeout(() => setSuccessMsg(""), 3000);
+    return () => clearTimeout(t);
+  }, [successMsg]);
+
   /* ── Filter ── */
   const filtered =
     activeFilter === "Toutes"
@@ -295,11 +302,28 @@ function Formation({ user }) {
         </div>
       )}
       {successMsg && (
-        <div style={{
-          margin: "1rem 2rem", padding: "0.85rem 1.2rem",
-          background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)",
-          borderRadius: 10, color: "#22c55e", fontWeight: 600, fontSize: "0.9rem",
-        }}>
+        <div
+          style={{
+            position: "fixed",
+            top: "1.25rem",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            maxWidth: "min(700px, 90vw)",
+            padding: "0.9rem 1.6rem",
+            background: "rgba(16, 60, 50, 0.55)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            border: "1px solid #22ff88",
+            borderRadius: 14,
+            color: "#4ade80",
+            fontWeight: 600,
+            fontSize: "0.9rem",
+            textAlign: "center",
+            boxShadow: "0 0 24px rgba(34,255,136,0.35)",
+            animation: "toastSlideDown 0.3s ease",
+          }}
+        >
           {successMsg}
         </div>
       )}
@@ -363,7 +387,7 @@ function Formation({ user }) {
           onClick={() => setShowCart(false)}
           style={{
             position: "fixed", inset: 0,
-            background: "rgba(0,0,0,0.5)",
+            background: "rgba(10,36,80,0.35)",
             zIndex: 100, backdropFilter: "blur(2px)",
           }}
         >
@@ -372,45 +396,54 @@ function Formation({ user }) {
             style={{
               position: "fixed", right: 0, top: 0, bottom: 0,
               width: "min(420px, 95vw)",
-              background: "linear-gradient(180deg, #141010 0%, #0e0c08 100%)",
-              borderLeft: "1px solid rgba(212,168,67,0.2)",
+              background: "rgba(255,255,255,0.80)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              borderLeft: "1px solid var(--sky-200)",
               display: "flex", flexDirection: "column",
               zIndex: 200,
-              boxShadow: "-20px 0 60px rgba(0,0,0,0.6)",
+              boxShadow: "-20px 0 60px rgba(3,105,161,0.15)",
               animation: "slideInRight 0.25s ease",
+              fontFamily: "'DM Sans', sans-serif",
             }}
           >
             {/* Header */}
             <div style={{
               padding: "1.5rem",
-              borderBottom: "1px solid rgba(255,255,255,0.08)",
+              borderBottom: "1px solid var(--sky-100)",
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
               <div>
-                <h2 style={{ margin: 0, color: "#fff", fontSize: "1.2rem", fontWeight: 700 }}>
+                <h2 style={{
+                  margin: 0, color: "var(--sky-900)", fontSize: "1.2rem", fontWeight: 700,
+                  fontFamily: "'Playfair Display', serif",
+                }}>
                   🛒 Mon Panier
                 </h2>
-                <span style={{ fontSize: "0.8rem", color: "#888", marginTop: "0.2rem", display: "block" }}>
+                <span style={{ fontSize: "0.8rem", color: "var(--sky-600)", marginTop: "0.2rem", display: "block" }}>
                   {cart.length} article{cart.length > 1 ? "s" : ""}
                 </span>
               </div>
               <button
                 onClick={() => setShowCart(false)}
                 style={{
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 8, padding: "0.4rem 0.7rem",
-                  color: "#aaa", cursor: "pointer", fontSize: "1rem",
+                  background: "var(--sky-100)",
+                  border: "1px solid var(--sky-200)",
+                  borderRadius: 999, padding: "0.4rem 0.7rem",
+                  color: "var(--sky-700)", cursor: "pointer", fontSize: "1rem",
+                  transition: "background 0.2s ease",
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "var(--sky-200)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "var(--sky-100)"}
               >✕</button>
             </div>
 
             {/* Items */}
             <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.5rem" }}>
               {cart.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "3rem 1rem", opacity: 0.4 }}>
-                  <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>🛒</div>
-                  <p style={{ color: "#aaa" }}>Votre panier est vide</p>
+                <div style={{ textAlign: "center", padding: "3rem 1rem", opacity: 0.6 }}>
+                  <div style={{ fontSize: "2.5rem", marginBottom: "1rem", color: "var(--sky-400)" }}>🛒</div>
+                  <p style={{ color: "var(--sky-500)" }}>Votre panier est vide</p>
                 </div>
               ) : (
                 ["formation", "course"].map((type) => {
@@ -420,7 +453,7 @@ function Formation({ user }) {
                     <div key={type} style={{ marginBottom: "1.5rem" }}>
                       <p style={{
                         fontSize: "0.7rem", textTransform: "uppercase",
-                        letterSpacing: "0.1em", color: "#666",
+                        letterSpacing: "0.1em", color: "var(--sky-600)",
                         marginBottom: "0.75rem", fontWeight: 600,
                       }}>
                         {type === "formation" ? "📚 Formations" : "🎓 Cours individuels"}
@@ -431,14 +464,14 @@ function Formation({ user }) {
                           style={{
                             display: "flex", justifyContent: "space-between", alignItems: "flex-start",
                             padding: "0.85rem 1rem",
-                            background: "rgba(255,255,255,0.04)",
-                            border: "1px solid rgba(255,255,255,0.07)",
+                            background: "var(--sky-50)",
+                            border: "1px solid var(--sky-100)",
                             borderRadius: 10, marginBottom: "0.5rem",
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <h4 style={{
-                              margin: "0 0 0.2rem", color: "#fff",
+                              margin: "0 0 0.2rem", color: "var(--sky-900)",
                               fontSize: "0.92rem", fontWeight: 600,
                               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                             }}>
@@ -446,23 +479,23 @@ function Formation({ user }) {
                               {item._label || item.titre || item.title}
                             </h4>
                             {item._formationName && (
-                              <p style={{ margin: "0 0 0.25rem", fontSize: "0.72rem", color: "#666" }}>
+                              <p style={{ margin: "0 0 0.25rem", fontSize: "0.72rem", color: "var(--sky-600)" }}>
                                 dans {item._formationName}
                               </p>
                             )}
-                            <span style={{ fontSize: "0.88rem", color: "#d4a843", fontWeight: 700 }}>
+                            <span style={{ fontSize: "0.88rem", color: "#f5a623", fontWeight: 700 }}>
                               {Number(item.prix).toLocaleString("fr-TN")} TND
                             </span>
                           </div>
                           <button
                             onClick={() => removeFromCart(item)}
                             style={{
-                              background: "none", border: "none", color: "#555",
+                              background: "none", border: "none", color: "var(--sky-400)",
                               cursor: "pointer", fontSize: "1.1rem",
                               padding: "0 0 0 0.5rem", flexShrink: 0, transition: "color 0.15s",
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.color = "#ef4444"}
-                            onMouseLeave={(e) => e.currentTarget.style.color = "#555"}
+                            onMouseLeave={(e) => e.currentTarget.style.color = "var(--sky-400)"}
                           >✕</button>
                         </div>
                       ))}
@@ -475,34 +508,36 @@ function Formation({ user }) {
             {/* Footer */}
             <div style={{
               padding: "1.5rem",
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(0,0,0,0.3)",
+              borderTop: "1px solid var(--sky-200)",
+              background: "rgba(255,255,255,0.70)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
             }}>
               {/* Subtotals si les deux types présents */}
               {cart.some((f) => f._type === "formation") && cart.some((f) => f._type === "course") && (
                 <div style={{ marginBottom: "0.75rem" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "#888", marginBottom: "0.3rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "var(--sky-600)", marginBottom: "0.3rem" }}>
                     <span>Formations</span>
                     <span>{cart.filter((f) => f._type === "formation").reduce((a, c) => a + Number(c.prix), 0).toLocaleString("fr-TN")} TND</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "#888" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "var(--sky-600)" }}>
                     <span>Cours individuels</span>
                     <span>{cart.filter((f) => f._type === "course").reduce((a, c) => a + Number(c.prix), 0).toLocaleString("fr-TN")} TND</span>
                   </div>
-                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: "0.6rem" }} />
+                  <div style={{ borderTop: "1px solid var(--sky-100)", marginTop: "0.6rem" }} />
                 </div>
               )}
 
               {/* Total */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
                 <div>
-                  <span style={{ color: "#888", fontSize: "0.82rem" }}>Total à payer</span>
-                  <div style={{ color: "#d4a843", fontSize: "1.6rem", fontWeight: 800, lineHeight: 1.1 }}>
+                  <span style={{ color: "var(--sky-600)", fontSize: "0.82rem" }}>Total à payer</span>
+                  <div style={{ color: "#f5a623", fontSize: "1.6rem", fontWeight: 800, lineHeight: 1.1 }}>
                     {total.toLocaleString("fr-TN")}
                     <span style={{ fontSize: "0.9rem", fontWeight: 600, marginLeft: 4 }}>TND</span>
                   </div>
                 </div>
-                <div style={{ textAlign: "right", fontSize: "0.75rem", color: "#555" }}>
+                <div style={{ textAlign: "right", fontSize: "0.75rem", color: "var(--sky-500)" }}>
                   {cart.length} article{cart.length > 1 ? "s" : ""}
                 </div>
               </div>
@@ -534,11 +569,11 @@ function Formation({ user }) {
                   width: "100%", padding: "0.9rem", borderRadius: 10, border: "none",
                   cursor: cart.length > 0 ? "pointer" : "not-allowed",
                   background: cart.length > 0
-                    ? "linear-gradient(135deg,#d4a843,#f0c060)"
-                    : "rgba(255,255,255,0.06)",
-                  color: cart.length > 0 ? "#1a1206" : "#555",
+                    ? "linear-gradient(135deg, var(--sky-600), var(--sky-500))"
+                    : "var(--sky-100)",
+                  color: cart.length > 0 ? "#fff" : "var(--sky-400)",
                   fontWeight: 800, fontSize: "1rem", transition: "all 0.2s",
-                  boxShadow: cart.length > 0 ? "0 4px 20px rgba(212,168,67,0.3)" : "none",
+                  boxShadow: cart.length > 0 ? "0 4px 20px rgba(14,165,233,0.35)" : "none",
                 }}
               >
                 ✓ Confirmer les inscriptions
@@ -549,11 +584,11 @@ function Formation({ user }) {
                   onClick={() => { setCart([]); localStorage.removeItem(cartKey); }}
                   style={{
                     width: "100%", marginTop: "0.6rem", padding: "0.5rem",
-                    background: "none", border: "none", color: "#555",
+                    background: "none", border: "none", color: "var(--sky-400)",
                     cursor: "pointer", fontSize: "0.8rem", transition: "color 0.15s",
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.color = "#ef4444"}
-                  onMouseLeave={(e) => e.currentTarget.style.color = "#555"}
+                  onMouseLeave={(e) => e.currentTarget.style.color = "var(--sky-400)"}
                 >
                   Vider le panier
                 </button>
@@ -567,6 +602,10 @@ function Formation({ user }) {
         @keyframes slideInRight {
           from { transform: translateX(100%); opacity: 0; }
           to   { transform: translateX(0);    opacity: 1; }
+        }
+        @keyframes toastSlideDown {
+          from { transform: translate(-50%, -20px); opacity: 0; }
+          to   { transform: translate(-50%, 0);      opacity: 1; }
         }
       `}</style>
     </div>

@@ -42,7 +42,7 @@
 .cw-hero { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: flex-end; padding: 34px 28px 18px; flex-wrap: wrap; gap: 16px; }
 .hero-eyebrow { font-size: 25px !important; font-weight: 700; letter-spacing: .18em; color: #e78905 !important; text-transform: uppercase; margin: 0 0 8px; }
 .hero-title { font-family: 'Cinzel', serif; font-size: 28px; font-weight: 600; color: #ea6a01 !important; margin: 0 0 10px; text-shadow: 0 2px 16px #b8d8f855; line-height: 1.2; }
-.hero-subtitle { font-size: 25px; color: white !important; margin: 0 0 16px; line-height: 1.6; }
+.hero-subtitle { font-size: 35px;font-style:italic; color: rgb(255, 251, 2) ;font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0 0 16px; line-height: 1.6; }
 .hero-divider { width: 60px; height: 3px; background: linear-gradient(90deg, #5ab4ff, #a8d8ff); border-radius: 2px; }
 
 .cw-stats { display: flex; gap: 12px; flex-wrap: wrap; }

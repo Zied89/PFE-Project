@@ -618,11 +618,13 @@
 
 .fd-course-title {
   font-family: 'Playfair Display', serif;
+  color:#ffea07 ;
   font-size: 17px;
   font-weight: 700;
-  color: var(--sky-900);
   margin-bottom: 8px;
   line-height: 1.25;
+  background: linear-gradient(135deg, var(--sky-600), var(--sky-800));
+  -webkit-background-clip: text;
 }
 
 .fd-course-meta {
@@ -633,15 +635,33 @@
 }
 
 .fd-meta-item {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #5a86a5;
+display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sky-700);
+  background: var(--sky-50);
+  border: 1px solid var(--sky-200);
+  padding: 5px 14px;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(14, 165, 233, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .fd-prix {
-  font-weight: 800;
+display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--sky-700);
-  font-size: 13.5px;
+  background: var(--sky-50);
+  border: 1px solid var(--sky-200);
+  padding: 5px 14px;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(14, 165, 233, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* Level badges */
@@ -835,7 +855,7 @@
 /* Glass elements */
 .fd-hero,
 .fd-course-card {
-  background: rgba(255,255,255,0.84) !important;
+  background: rgba(50, 51, 74, 0.385) !important;
   border-color: rgba(186,230,253,0.60) !important;
   box-shadow: 0 8px 36px rgba(10,36,80,0.18) !important;
   backdrop-filter: blur(10px) !important;
