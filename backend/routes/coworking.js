@@ -300,7 +300,7 @@ router.get("/reservations/disponibilite", authMiddleware, async (req, res) => {
     const { rows: creneaux } = await db.query(
       `SELECT to_char(date, 'YYYY-MM-DD') AS date, heure_debut, heure_fin, statut
        FROM reservations
-       WHERE type = $1 AND item_id = $2 AND statut <> 'refusée'
+       WHERE type = $1 AND item_id = $2 AND statut NOT IN ('refusée', 'annulée')
        ORDER BY date, heure_debut`,
       [type, Number(item_id)]
     );
@@ -346,13 +346,22 @@ router.get("/reservations", authMiddleware, adminMiddleware, async (req, res) =>
   }
 });
 
-// ✅ PUT /api/coworking/reservations/:id/statut (admin)
-router.put("/reservations/:id/statut", authMiddleware, adminMiddleware, async (req, res) => {
+// ✅ PUT /api/coworking/reservations/:id/statut
+// - "acceptée" / "refusée" : réservé aux admins.
+// - "annulée" : l'utilisateur propriétaire de la réservation peut l'annuler
+//   lui-même, à tout moment (quel que soit le statut actuel), sans passer
+//   par un admin. Les admins peuvent également annuler n'importe quelle
+//   réservation.
+router.put("/reservations/:id/statut", authMiddleware, async (req, res) => {
   const { statut } = req.body;
   const { id } = req.params;
+  const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
 
-  if (!["acceptée", "refusée"].includes(statut))
-    return res.status(400).json({ message: "Statut invalide. Valeurs acceptées: acceptée, refusée." });
+  if (!["acceptée", "refusée", "annulée"].includes(statut))
+    return res.status(400).json({ message: "Statut invalide. Valeurs acceptées: acceptée, refusée, annulée." });
+
+  if ((statut === "acceptée" || statut === "refusée") && !isAdmin)
+    return res.status(403).json({ message: "Accès refusé." });
 
   const client = await db.connect();
   try {
@@ -362,10 +371,19 @@ router.put("/reservations/:id/statut", authMiddleware, adminMiddleware, async (r
 
     const reservation = rows[0];
 
+    // Un utilisateur non-admin ne peut annuler que SA PROPRE réservation.
+    if (statut === "annulée" && !isAdmin && reservation.user_id !== req.user.id)
+      return res.status(403).json({ message: "Accès refusé." });
+
+    if (reservation.statut === "annulée")
+      return res.status(400).json({ message: "Cette réservation est déjà annulée." });
+
     await client.query("BEGIN");
     await client.query("UPDATE reservations SET statut=$1 WHERE id=$2", [statut, id]);
 
-    if (statut === "refusée") {
+    if (statut === "refusée" || statut === "annulée") {
+      // Une réservation refusée ou annulée libère la table/salle si elle
+      // avait été bloquée (cas d'une réservation "acceptée" annulée après coup).
       if (reservation.type === "table")
         await client.query("UPDATE tables_cw SET statut='Libre' WHERE id=$1", [reservation.item_id]);
       if (reservation.type === "salle")
@@ -414,7 +432,7 @@ router.delete("/reservations/:id", authMiddleware, async (req, res) => {
       await client.query("UPDATE salles SET disponible=true WHERE id=$1", [reservation.item_id]);
 
     await client.query("COMMIT");
-    return res.json({ message: "Réservation annulée." });
+    return res.json({ message: "Réservation supprimée." });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("[reservations DELETE]", err);

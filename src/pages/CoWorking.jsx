@@ -47,6 +47,11 @@ function Coworking({ user }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  // Confirmation avant annulation d'une réservation par l'utilisateur.
+  // Contrairement à `deleteConfirm` (suppression définitive, réservée aux
+  // admins), l'annulation ne fait que changer le statut en "annulée" —
+  // la réservation reste visible (côté user et côté AdminDashboard).
+  const [cancelConfirm, setCancelConfirm] = useState(null); // { id, nom }
   // Sélection multiple dans "Mes Réservations" pour suppression groupée
   const [selectMode, setSelectMode] = useState(false);
   const [selectedResa, setSelectedResa] = useState(new Set());
@@ -176,6 +181,29 @@ function Coworking({ user }) {
       showSuccess(type === "reservation" ? "Réservation supprimée." : "Suppression effectuée.");
     } catch {
       setError(type === "reservation" ? "Erreur lors de la suppression de la réservation." : "Erreur lors de la suppression.");
+    }
+  };
+
+  // L'utilisateur peut annuler sa réservation à tout moment, quel que soit
+  // son statut actuel (en attente, acceptée...). On ne la supprime pas :
+  // on passe simplement son statut à "annulée" pour qu'elle reste visible
+  // dans l'historique de l'utilisateur ET dans l'AdminDashboard.
+  // NOTE BACKEND : PUT `${API}/coworking/reservations/:id/statut` doit accepter
+  // la valeur "annulée" (en plus de "acceptée"/"refusée") et l'enregistrer telle quelle.
+  const handleAnnulerReservation = async () => {
+    if (!cancelConfirm) return;
+    try {
+      const res = await fetch(`${API}/coworking/reservations/${cancelConfirm.id}/statut`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ statut: "annulée" }),
+      });
+      if (!res.ok) throw new Error("Erreur API annulation");
+      setCancelConfirm(null);
+      fetchAll();
+      showSuccess("✅ Réservation annulée.");
+    } catch {
+      setError("Erreur lors de l'annulation de la réservation.");
     }
   };
 
@@ -889,29 +917,37 @@ function Coworking({ user }) {
                         marginLeft: "auto",
                       }}
                     >
-                      <span className={`cw-badge ${
-                        r.statut === "acceptée" ? "badge--green" :
-                        r.statut === "refusée" ? "badge--red" :
-                        "badge--amber"
-                      }`}>
+                      <span
+                        className={`cw-badge ${
+                          r.statut === "acceptée" ? "badge--green" :
+                          r.statut === "refusée" ? "badge--red" :
+                          r.statut === "annulée" ? "badge--gray" :
+                          "badge--amber"
+                        }`}
+                        style={r.statut === "annulée" ? {
+                          background: "rgba(148,163,184,0.18)",
+                          color: "#64748b",
+                          border: "1px solid rgba(148,163,184,0.4)",
+                        } : undefined}
+                      >
                         {r.statut === "acceptée" ? "✅ Acceptée" :
                          r.statut === "refusée"  ? "❌ Refusée"  :
+                         r.statut === "annulée"  ? "🚫 Annulée"  :
                          "⏳ En attente"}
                       </span>
-                      {!selectMode && (
+                      {!selectMode && r.statut !== "annulée" && (
                         <button
                           type="button"
                           className="cw-btn-annuler"
                           style={{ flexShrink: 0, whiteSpace: "nowrap" }}
                           onClick={() =>
-                            setDeleteConfirm({
-                              type: "reservation",
+                            setCancelConfirm({
                               id: r.id,
                               nom: `${r.item_nom} (${r.date}, ${r.heure_debut}–${r.heure_fin})`,
                             })
                           }
                         >
-                          🗑 Supprimer
+                          🚫 Annuler la réservation
                         </button>
                       )}
                     </div>
@@ -1340,6 +1376,26 @@ function Coworking({ user }) {
                   </button>
                 );
               })()}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── CANCEL (ANNULER) CONFIRM ── */}
+      {cancelConfirm && (
+        <Modal title="Confirmer l'annulation" onClose={() => setCancelConfirm(null)}>
+          <div className="cw-form">
+            <p className="cw-delete-msg">
+              Voulez-vous vraiment annuler <strong>{cancelConfirm.nom}</strong> ?
+            </p>
+            <p className="cw-card-meta" style={{ marginTop: -4 }}>
+              La réservation restera visible avec le statut « Annulée ».
+            </p>
+            <div className="cw-form-actions">
+              <button className="cw-btn-cancel" onClick={() => setCancelConfirm(null)}>Retour</button>
+              <button className="cw-btn-del-confirm" onClick={handleAnnulerReservation}>
+                🚫 Annuler la réservation
+              </button>
             </div>
           </div>
         </Modal>

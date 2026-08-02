@@ -119,9 +119,9 @@ function AdminDashboard({ user, setUser }) {
   const pendingReservations = reservations.filter((r) => !r.statut || r.statut === "en_attente");
   const pendingInscriptions  = inscriptions.filter((i) => !i.statut || i.statut === "en_attente");
 
-  // History = acceptée or refusée
+  // History = acceptée, refusée, ou annulée (par l'utilisateur)
   const historyReservations = reservations.filter(
-    (r) => r.statut === "acceptée" || r.statut === "refusée"
+    (r) => r.statut === "acceptée" || r.statut === "refusée" || r.statut === "annulée"
   );
   const historyInscriptions  = inscriptions.filter(
     (i) => i.statut === "acceptée" || i.statut === "refusée"
@@ -778,16 +778,19 @@ function AdminDashboard({ user, setUser }) {
                       const hasPending = dayReservs.some((r) => !r.statut || r.statut === "en_attente");
                       const hasAccepted = dayReservs.some((r) => r.statut === "acceptée");
                       const hasRefused = dayReservs.some((r) => r.statut === "refusée");
+                      const hasCancelled = dayReservs.some((r) => r.statut === "annulée");
                       const isToday = dStr === todayStr;
                       const isSelected = dStr === calSelectedDate;
 
                       // Couleur de fond : vert si acceptée, rouge si refusée,
-                      // dégradé si les deux sont présentes le même jour, orange si en attente uniquement.
+                      // dégradé si les deux sont présentes le même jour, orange si en attente uniquement,
+                      // gris si seulement des réservations annulées.
                       let dayBg = "#fff";
                       if (hasAccepted && hasRefused) dayBg = "linear-gradient(135deg, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.18) 50%, rgba(239,68,68,0.18) 50%, rgba(239,68,68,0.18) 100%)";
                       else if (hasAccepted) dayBg = "rgba(34,197,94,0.16)";
                       else if (hasRefused) dayBg = "rgba(239,68,68,0.16)";
                       else if (hasPending) dayBg = "rgba(245,158,11,0.10)";
+                      else if (hasCancelled) dayBg = "rgba(148,163,184,0.14)";
 
                       return (
                         <button
@@ -807,6 +810,7 @@ function AdminDashboard({ user, setUser }) {
                               {hasPending && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />}
                               {hasAccepted && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />}
                               {hasRefused && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />}
+                              {hasCancelled && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#94a3b8" }} />}
                             </span>
                           )}
                         </button>
@@ -817,6 +821,7 @@ function AdminDashboard({ user, setUser }) {
                     <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#f59e0b", marginRight: 5 }} />En attente</span>
                     <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#22c55e", marginRight: 5 }} />Acceptée</span>
                     <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#ef4444", marginRight: 5 }} />Refusée</span>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#94a3b8", marginRight: 5 }} />Annulée</span>
                   </div>
                 </div>
 
@@ -844,6 +849,7 @@ function AdminDashboard({ user, setUser }) {
                           borderLeft: `4px solid ${
                             r.statut === "acceptée" ? "#22c55e" :
                             r.statut === "refusée"  ? "#ef4444" :
+                            r.statut === "annulée"  ? "#94a3b8" :
                             "#f59e0b"
                           }`,
                         }}>
@@ -858,13 +864,18 @@ function AdminDashboard({ user, setUser }) {
                             </div>
                           </div>
                           <div className="adm-list-right">
-                            <span className={`adm-badge ${
-                              r.statut === "acceptée" ? "badge-actif" :
-                              r.statut === "refusée"  ? "badge-inactif" :
-                              "badge-suspendu"
-                            }`}>
+                            <span
+                              className={`adm-badge ${
+                                r.statut === "acceptée" ? "badge-actif" :
+                                r.statut === "refusée"  ? "badge-inactif" :
+                                r.statut === "annulée"  ? "badge-inactif" :
+                                "badge-suspendu"
+                              }`}
+                              style={r.statut === "annulée" ? { background: "#94a3b8" } : undefined}
+                            >
                               {r.statut === "acceptée" ? "✅ Acceptée" :
                                r.statut === "refusée"  ? "❌ Refusée" :
+                               r.statut === "annulée"  ? "🚫 Annulée" :
                                "⏳ En attente"}
                             </span>
                             <button className="adm-btn-sm adm-btn-edit" onClick={() => setResDetails(r)}>🔍 Détails</button>
@@ -1114,6 +1125,7 @@ function AdminDashboard({ user, setUser }) {
                   { key: "tous",     label: "Tous",      color: "#64748b" },
                   { key: "acceptée", label: "✅ Acceptés", color: "#22c55e" },
                   { key: "refusée",  label: "❌ Refusés",  color: "#ef4444" },
+                  { key: "annulée",  label: "🚫 Annulées", color: "#94a3b8" },
                 ].map((f) => (
                   <button key={f.key} onClick={() => setHistStatutFilter(f.key)} style={{
                     padding: "5px 13px", borderRadius: 20, border: `1.5px solid ${f.color}`,
@@ -1150,7 +1162,8 @@ function AdminDashboard({ user, setUser }) {
                   {filtered.map((item, i) => {
                     const isReserv  = item._kind === "reservation";
                     const isAccepted = item.statut === "acceptée";
-                    const borderColor = isAccepted ? "#22c55e" : "#ef4444";
+                    const isCancelled = item.statut === "annulée";
+                    const borderColor = isAccepted ? "#22c55e" : isCancelled ? "#94a3b8" : "#ef4444";
 
                     return (
                       <div className="adm-list-card" key={`${item._kind}-${item.id}`} style={{
@@ -1193,6 +1206,10 @@ function AdminDashboard({ user, setUser }) {
                           {/* Statut badge (read-only in history) */}
                           {isAccepted ? (
                             <span className="adm-badge badge-actif">✅ Accepté(e)</span>
+                          ) : isCancelled ? (
+                            <span className="adm-badge badge-inactif" style={{ background: "#94a3b8" }}>
+                              🚫 Annulée par l'utilisateur
+                            </span>
                           ) : (
                             <span className="adm-badge badge-inactif">❌ Refusé(e)</span>
                           )}
@@ -1388,15 +1405,34 @@ function AdminDashboard({ user, setUser }) {
                 className={`adm-badge ${
                   resDetails.statut === "acceptée" ? "badge-actif" :
                   resDetails.statut === "refusée"  ? "badge-inactif" :
+                  resDetails.statut === "annulée"  ? "badge-inactif" :
                   "badge-suspendu"
                 }`}
-                style={{ marginLeft: "auto" }}
+                style={{
+                  marginLeft: "auto",
+                  ...(resDetails.statut === "annulée" ? { background: "#94a3b8" } : {}),
+                }}
               >
                 {resDetails.statut === "acceptée" ? "✅ Acceptée" :
                  resDetails.statut === "refusée"  ? "❌ Refusée"  :
+                 resDetails.statut === "annulée"  ? "🚫 Annulée"  :
                  "⏳ En attente"}
               </span>
             </div>
+
+            {resDetails.statut === "annulée" && (
+              <div style={{
+                background: "rgba(148,163,184,0.15)",
+                border: "1px solid rgba(148,163,184,0.4)",
+                borderRadius: 10,
+                padding: "10px 14px",
+                marginBottom: 16,
+                fontSize: "0.85rem",
+                color: "#475569",
+              }}>
+                🚫 Cette réservation a été annulée par l'utilisateur.
+              </div>
+            )}
 
             {/* Détails en grille */}
             <div style={{
