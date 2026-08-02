@@ -45,6 +45,11 @@ const coursesByCategory = {
     { id: 3, title: "Stratégies de croissance", duration: "5 semaines", level: "Intermédiaire", students: 198, prix: 290 },
     { id: 4, title: "Pitching & Levée de fonds", duration: "4 semaines", level: "Intermédiaire", students: 142, prix: 240 },
     { id: 5, title: "Gestion financière pour startups", duration: "6 semaines", level: "Avancé", students: 97, prix: 360 },
+    { id: 6, title: "Étude de marché & Validation d'idée", duration: "3 semaines", level: "Débutant", students: 178, prix: 150 },
+    { id: 7, title: "Juridique & Création d'entreprise", duration: "3 semaines", level: "Intermédiaire", students: 121, prix: 200 },
+    { id: 8, title: "Growth Hacking & Acquisition", duration: "4 semaines", level: "Intermédiaire", students: 156, prix: 230 },
+    { id: 9, title: "Négociation & Vente pour entrepreneurs", duration: "3 semaines", level: "Débutant", students: 134, prix: 170 },
+    { id: 10, title: "Recrutement & Gestion d'équipe startup", duration: "4 semaines", level: "Avancé", students: 92, prix: 260 },
   ],
   "Cybersécurité": [
     { id: 1, title: "Fondamentaux de la cybersécurité", duration: "4 semaines", level: "Débutant", students: 265, prix: 190 },
@@ -61,6 +66,10 @@ const coursesByCategory = {
     { id: 5, title: "Effets spéciaux & Compositing", duration: "6 semaines", level: "Avancé", students: 67, prix: 400 },
   ],
 };
+// Alias : le filtre de Formation.jsx utilise le tag "Entrepreneuriat & Startup",
+// qui peut différer du champ `categorie` stocké en base ("Business & Entrepreneuriat").
+// On fait pointer les deux clés vers la même liste pour que ça matche dans tous les cas.
+coursesByCategory["Entrepreneuriat & Startup"] = coursesByCategory["Business & Entrepreneuriat"];
 
 const levelColors = {
   "Débutant":      "level--green",
