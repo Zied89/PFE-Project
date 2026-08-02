@@ -123,7 +123,12 @@ function Coworking({ user }) {
     } else if (modal.type === "emplacement") {
       if (!form.nom || !form.salle_id || !form.places) return;
       url = isEdit ? `${API}/coworking/emplacements/${modal.data.id}` : `${API}/coworking/emplacements`;
-      body = { nom: form.nom, salle_id: Number(form.salle_id), places: Number(form.places) };
+      body = {
+        nom: form.nom,
+        salle_id: Number(form.salle_id),
+        places: Number(form.places),
+        tarif_horaire: Number(form.tarif_horaire) || 0,
+      };
     } else if (modal.type === "table") {
       if (!form.nom || !form.emplacement_id) return;
       url = isEdit ? `${API}/coworking/tables/${modal.data.id}` : `${API}/coworking/tables`;
@@ -132,6 +137,7 @@ function Coworking({ user }) {
         emplacement_id: Number(form.emplacement_id),
         statut: form.statut || "Libre",
         tarif_horaire: Number(form.tarif_horaire) || 0,
+        capacite: Number(form.capacite) || 1,
       };
     }
 
@@ -427,13 +433,15 @@ function Coworking({ user }) {
     return minutes > 0 ? minutes / 60 : 0;
   };
 
-  // Tarif horaire de l'élément réservé (salle ou table). Si une table n'a
-  // pas de tarif propre, on retombe sur le tarif de la salle qui la contient.
+  // Tarif horaire de l'élément réservé (salle ou table). Chaîne de repli
+  // pour une table : son propre tarif → celui de son emplacement → celui
+  // de sa salle. Le premier tarif défini (> 0) l'emporte.
   const getTarifHoraire = (type, item) => {
     if (!item) return 0;
     if (type === "table") {
       if (item.tarif_horaire) return Number(item.tarif_horaire);
       const emplacement = emplacements.find(e => e.id === item.emplacement_id);
+      if (emplacement?.tarif_horaire) return Number(emplacement.tarif_horaire);
       const salle = salles.find(s => s.id === emplacement?.salle_id);
       return Number(salle?.tarif_horaire) || 0;
     }
@@ -594,48 +602,23 @@ function Coworking({ user }) {
                         <p className="cw-card-meta" style={{ fontWeight: 600, marginBottom: 8 }}>
                           🪑 Tables ({salleTables.length})
                         </p>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div className="cw-mini-table-list">
                           {salleTables.map((t) => (
-                            <div
-                              key={t.id}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 8,
-                                padding: "8px 10px",
-                                borderRadius: 10,
-                                background: "rgba(0,0,0,0.03)",
-                              }}
-                            >
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                  <strong style={{ fontSize: 14 }}>{t.nom}</strong>
-                                  <span className={`cw-badge ${t.statut === "Libre" ? "badge--green" : t.statut === "Occupée" ? "badge--red" : "badge--amber"}`}>
-                                    {t.statut}
-                                  </span>
-                                </div>
-                                <p className="cw-card-meta" style={{ margin: "2px 0 0" }}>
-                                  {getTarifHoraire("table", t)} DT/h
-                                </p>
+                            <div className="cw-mini-table-card" key={t.id}>
+                              <div className="cw-mini-table-head">
+                                <strong className="cw-mini-table-name">{t.nom}</strong>
+                                <span className={`cw-badge ${t.statut === "Libre" ? "badge--green" : t.statut === "Occupée" ? "badge--red" : "badge--amber"}`}>
+                                  {t.statut}
+                                </span>
                               </div>
-                              {isAdmin && (
-                                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                                  <button className="cw-btn-edit" onClick={() => openEdit("table", t)}>✏</button>
+                              {isAdmin ? (
+                                <div className="cw-mini-table-actions">
+                                  <button className="cw-btn-edit" onClick={() => openEdit("table", t)}>✏ Modifier</button>
                                   <button className="cw-btn-del" onClick={() => setDeleteConfirm({ type: "table", id: t.id, nom: t.nom })}>🗑</button>
                                 </div>
-                              )}
-                              {!isAdmin && (
+                              ) : (
                                 <button
-                                  className="cw-btn-reserv"
-                                  style={{
-                                    padding: "6px 12px",
-                                    fontSize: "0.78rem",
-                                    flexShrink: 0,
-                                    whiteSpace: "nowrap",
-                                    opacity: t.statut === "Libre" ? 1 : 0.5,
-                                    cursor: t.statut === "Libre" ? "pointer" : "not-allowed",
-                                  }}
+                                  className="cw-btn-reserv cw-btn-reserv--sm"
                                   disabled={t.statut !== "Libre"}
                                   onClick={() => openReserv("table", t)}
                                   title={t.statut === "Libre" ? `Réserver la table ${t.nom}` : `Table indisponible (${t.statut})`}
@@ -643,6 +626,10 @@ function Coworking({ user }) {
                                   📅 Réserver
                                 </button>
                               )}
+                              <div className="cw-mini-table-info">
+                                <span>💰 {getTarifHoraire("table", t)} DT/h</span>
+                                <span>👥 {t.capacite || 1} pers.</span>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -678,6 +665,10 @@ function Coworking({ user }) {
                   </div>
                   <h3 className="cw-card-title">{e.nom}</h3>
                   <p className="cw-card-meta">Places : <strong>{e.places}</strong></p>
+                  <p className="cw-card-meta">
+                    Tarif : <strong>{Number(e.tarif_horaire) || 0} DT/h</strong>
+                    {!Number(e.tarif_horaire) && <span style={{ opacity: 0.65 }}> (tarif de la salle)</span>}
+                  </p>
                   {isAdmin && (
                     <div className="cw-card-actions">
                       <button className="cw-btn-edit" onClick={() => openEdit("emplacement", e)}>✏ Modifier</button>
@@ -728,6 +719,7 @@ function Coworking({ user }) {
                       <p className="cw-card-meta">
                         📍 Emplacement : <strong>{empl?.nom || "—"}</strong>
                       </p>
+                      <p className="cw-card-meta">👥 Capacité : <strong>{t.capacite || 1} personne{(t.capacite || 1) > 1 ? "s" : ""}</strong></p>
                       <p className="cw-card-meta">Tarif : <strong>{getTarifHoraire("table", t)} DT/h</strong></p>
                       {isAdmin && (
                         <div className="cw-card-actions">
@@ -1052,6 +1044,13 @@ function Coworking({ user }) {
             </select>
             <label>Nombre de places</label>
             <input type="number" min="1" placeholder="Ex: 8" value={form.places || ""} onChange={e => setForm(f => ({ ...f, places: e.target.value }))} />
+            <label>Tarif horaire (DT/h)</label>
+            <input
+              type="number" min="0" step="0.5"
+              placeholder="Laisser vide pour utiliser le tarif de la salle"
+              value={form.tarif_horaire === undefined || form.tarif_horaire === null ? "" : form.tarif_horaire}
+              onChange={e => setForm(f => ({ ...f, tarif_horaire: e.target.value }))}
+            />
             <div className="cw-form-actions">
               <button className="cw-btn-cancel" onClick={closeModal}>Annuler</button>
               <button className="cw-btn-save" onClick={handleSave}>Enregistrer</button>
@@ -1104,8 +1103,10 @@ function Coworking({ user }) {
               <option value="Occupée">Occupée</option>
               <option value="Réservée">Réservée</option>
             </select>
+            <label>Capacité (personnes)</label>
+            <input type="number" min="1" placeholder="Ex: 4" value={form.capacite || ""} onChange={e => setForm(f => ({ ...f, capacite: e.target.value }))} />
             <label>Tarif horaire (DT/h)</label>
-            <input type="number" min="0" step="0.5" placeholder="Laisser vide pour utiliser le tarif de la salle" value={form.tarif_horaire === undefined || form.tarif_horaire === null ? "" : form.tarif_horaire} onChange={e => setForm(f => ({ ...f, tarif_horaire: e.target.value }))} />
+            <input type="number" min="0" step="0.5" placeholder="Laisser vide pour utiliser le tarif de l'emplacement / de la salle" value={form.tarif_horaire === undefined || form.tarif_horaire === null ? "" : form.tarif_horaire} onChange={e => setForm(f => ({ ...f, tarif_horaire: e.target.value }))} />
             <div className="cw-form-actions">
               <button className="cw-btn-cancel" onClick={closeModal}>Annuler</button>
               <button className="cw-btn-save" onClick={handleSave}>Enregistrer</button>

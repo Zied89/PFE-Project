@@ -85,13 +85,13 @@ router.get("/emplacements", authMiddleware, async (req, res) => {
 
 // POST /api/coworking/emplacements (admin)
 router.post("/emplacements", authMiddleware, adminMiddleware, async (req, res) => {
-  const { nom, salle_id, places } = req.body;
+  const { nom, salle_id, places, tarif_horaire } = req.body;
   if (!nom || !salle_id || !places)
     return res.status(400).json({ message: "Tous les champs sont obligatoires." });
   try {
     const { rows } = await db.query(
-      "INSERT INTO emplacements (nom, salle_id, places) VALUES ($1, $2, $3) RETURNING *",
-      [nom, Number(salle_id), Number(places)]
+      "INSERT INTO emplacements (nom, salle_id, places, tarif_horaire) VALUES ($1, $2, $3, $4) RETURNING *",
+      [nom, Number(salle_id), Number(places), Number(tarif_horaire) || 0]
     );
     return res.status(201).json({ emplacement: rows[0] });
   } catch (err) {
@@ -102,15 +102,15 @@ router.post("/emplacements", authMiddleware, adminMiddleware, async (req, res) =
 
 // PUT /api/coworking/emplacements/:id (admin)
 router.put("/emplacements/:id", authMiddleware, adminMiddleware, async (req, res) => {
-  const { nom, salle_id, places } = req.body;
+  const { nom, salle_id, places, tarif_horaire } = req.body;
   const { id } = req.params;
   try {
     const check = await db.query("SELECT id FROM emplacements WHERE id = $1", [id]);
     if (!check.rows.length)
       return res.status(404).json({ message: "Emplacement introuvable." });
     const { rows } = await db.query(
-      "UPDATE emplacements SET nom=$1, salle_id=$2, places=$3 WHERE id=$4 RETURNING *",
-      [nom, Number(salle_id), Number(places), id]
+      "UPDATE emplacements SET nom=$1, salle_id=$2, places=$3, tarif_horaire=$4 WHERE id=$5 RETURNING *",
+      [nom, Number(salle_id), Number(places), Number(tarif_horaire) || 0, id]
     );
     return res.json({ emplacement: rows[0] });
   } catch (err) {
@@ -153,13 +153,13 @@ router.get("/tables", authMiddleware, async (req, res) => {
 
 // POST /api/coworking/tables (admin)
 router.post("/tables", authMiddleware, adminMiddleware, async (req, res) => {
-  const { nom, emplacement_id, statut, tarif_horaire } = req.body;
+  const { nom, emplacement_id, statut, tarif_horaire, capacite } = req.body;
   if (!nom || !emplacement_id)
     return res.status(400).json({ message: "Nom et emplacement sont obligatoires." });
   try {
     const { rows } = await db.query(
-      "INSERT INTO tables_cw (nom, emplacement_id, statut, tarif_horaire) VALUES ($1, $2, $3, $4) RETURNING *",
-      [nom, Number(emplacement_id), statut || "Libre", Number(tarif_horaire) || 0]
+      "INSERT INTO tables_cw (nom, emplacement_id, statut, tarif_horaire, capacite) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [nom, Number(emplacement_id), statut || "Libre", Number(tarif_horaire) || 0, Number(capacite) || 1]
     );
     return res.status(201).json({ table: rows[0] });
   } catch (err) {
@@ -170,15 +170,15 @@ router.post("/tables", authMiddleware, adminMiddleware, async (req, res) => {
 
 // PUT /api/coworking/tables/:id (admin)
 router.put("/tables/:id", authMiddleware, adminMiddleware, async (req, res) => {
-  const { nom, emplacement_id, statut, tarif_horaire } = req.body;
+  const { nom, emplacement_id, statut, tarif_horaire, capacite } = req.body;
   const { id } = req.params;
   try {
     const check = await db.query("SELECT id FROM tables_cw WHERE id = $1", [id]);
     if (!check.rows.length)
       return res.status(404).json({ message: "Table introuvable." });
     const { rows } = await db.query(
-      "UPDATE tables_cw SET nom=$1, emplacement_id=$2, statut=$3, tarif_horaire=$4 WHERE id=$5 RETURNING *",
-      [nom, Number(emplacement_id), statut, Number(tarif_horaire) || 0, id]
+      "UPDATE tables_cw SET nom=$1, emplacement_id=$2, statut=$3, tarif_horaire=$4, capacite=$5 WHERE id=$6 RETURNING *",
+      [nom, Number(emplacement_id), statut, Number(tarif_horaire) || 0, Number(capacite) || 1, id]
     );
     return res.json({ table: rows[0] });
   } catch (err) {
