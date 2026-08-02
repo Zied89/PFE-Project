@@ -144,6 +144,16 @@ function Formation({ user }) {
     const formationItems = cart.filter((f) => f._type === "formation");
     const courseItems    = cart.filter((f) => f._type === "course");
 
+    // Instantané des articles du panier pour la commande (titre/prix figés à l'achat)
+    const commandeItems = cart.map((item) => ({
+      type: item._type === "course" ? "cours" : "formation",
+      formationId: item._type === "formation" ? item.id : item._formationId,
+      titre: item._label || item.titre || item.title,
+      prix: item.prix,
+      tag: item.tag,
+      icon: item.icon,
+    }));
+
     try {
       const results = await Promise.allSettled([
         // Formations — inscrire-multiple
@@ -198,7 +208,18 @@ function Formation({ user }) {
         return;
       }
 
-      // ✅ Succès
+      // ✅ Succès — enregistrer la commande (visible dans "Mes commandes" et l'admin)
+      try {
+        const cmdRes = await fetch(`${API}/commandes`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ items: commandeItems }),
+        });
+        if (!cmdRes.ok) console.error("Erreur enregistrement commande:", await cmdRes.text());
+      } catch (cmdErr) {
+        console.error("Erreur enregistrement commande:", cmdErr);
+      }
+
       setCart([]);
       localStorage.removeItem(cartKey);
       setShowCart(false);

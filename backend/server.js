@@ -30,6 +30,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/coworking", coworkingRoutes);
 app.use("/api/formations", formationsRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/modules", require("./routes/modules"));
+app.use("/api/commandes", require("./routes/commandes"));
 
 // Route de santé
 app.get("/api/health", (_, res) => res.json({ status: "ok" }));
@@ -51,4 +53,3 @@ app.get(/^(?!\/api).*/, (_, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Serveur démarré sur http://localhost:${PORT}`);
 });
-app.use("/api/modules", require("./routes/modules"));

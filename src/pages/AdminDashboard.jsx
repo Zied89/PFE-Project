@@ -89,25 +89,22 @@ function AdminDashboard({ user, setUser }) {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [uRes, rRes, iRes] = await Promise.all([
+      const [uRes, rRes, iRes, cRes] = await Promise.all([
         fetch(`${API}/admin/users`, { headers: authHeaders() }),
         fetch(`${API}/coworking/reservations`, { headers: authHeaders() }),
         fetch(`${API}/formations/inscriptions/all`, { headers: authHeaders() }),
+        fetch(`${API}/commandes/all`, { headers: authHeaders() }),
       ]);
 
       const uData = uRes.ok ? await uRes.json() : { users: [] };
       const rData = rRes.ok ? await rRes.json() : { reservations: [] };
       const iData = iRes.ok ? await iRes.json() : { inscriptions: [] };
+      const cData = cRes.ok ? await cRes.json() : { commandes: [] };
 
       setUsers(uData.users || []);
       setReservations(rData.reservations || []);
       setInscriptions(iData.inscriptions || []);
-
-      // Charger l'historique des achats depuis localStorage
-      try {
-        const stored = JSON.parse(localStorage.getItem("tz_purchases_history") || "[]");
-        setPurchases(stored);
-      } catch { setPurchases([]); }
+      setPurchases(cData.commandes || []);
     } catch (err) {
       showToast("Impossible de charger les données.", "error");
     } finally {
@@ -338,6 +335,31 @@ function AdminDashboard({ user, setUser }) {
       });
       if (!res.ok) return showToast("Erreur lors de la suppression.", "error");
       fetchAll(); showToast("🗑 Inscription supprimée.");
+    } catch { showToast("Erreur de connexion au serveur.", "error"); }
+  };
+
+  const updateStatutCommande = async (id, statut) => {
+    try {
+      const res = await fetch(`${API}/commandes/${id}/statut`, {
+        method: "PUT", headers: authHeaders(),
+        body: JSON.stringify({ statut }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        return showToast(`❌ ${errData?.message || `Erreur ${res.status}`}`, "error");
+      }
+      fetchAll();
+      showToast(statut === "acceptée" ? "✅ Commande acceptée." : "❌ Commande refusée.");
+    } catch (err) { showToast(`Erreur : ${err.message}`, "error"); }
+  };
+
+  const deleteCommande = async (id) => {
+    try {
+      const res = await fetch(`${API}/commandes/${id}`, {
+        method: "DELETE", headers: authHeaders(),
+      });
+      if (!res.ok) return showToast("Erreur lors de la suppression.", "error");
+      fetchAll(); showToast("🗑 Commande supprimée.");
     } catch { showToast("Erreur de connexion au serveur.", "error"); }
   };
 
@@ -940,14 +962,8 @@ function AdminDashboard({ user, setUser }) {
               </h2>
               <div className="adm-toolbar-right" style={{ gap: 4 }}>
                 <span style={{ fontSize: "0.75rem", color: "#94a3b8", padding: "5px 10px" }}>
-                  Données locales — mise à jour en temps réel
+                  Synchronisé avec la base de données
                 </span>
-                {purchases.length > 0 && isSuperAdmin && (
-                  <button
-                    onClick={() => { localStorage.removeItem("tz_purchases_history"); setPurchases([]); showToast("Historique d'achats vidé."); }}
-                    style={{ padding: "5px 13px", borderRadius: 20, border: "1.5px solid #ef4444", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer", background: "transparent", color: "#ef4444" }}
-                  >🗑 Vider</button>
-                )}
               </div>
             </div>
 
@@ -961,7 +977,7 @@ function AdminDashboard({ user, setUser }) {
               <div className="adm-list">
                 {purchases.map((purchase, i) => {
                   const totalPurchase = purchase.total || purchase.items?.reduce((a, f) => a + Number(f.prix || 0), 0) || 0;
-                  const dateStr = purchase.date ? new Date(purchase.date).toLocaleString("fr-TN") : "—";
+                  const dateStr = purchase.created_at ? new Date(purchase.created_at).toLocaleString("fr-TN") : "—";
                   const isAccepted = purchase.statut === "acceptée";
                   const isRefused  = purchase.statut === "refusée";
                   const isPending  = !isAccepted && !isRefused;
@@ -979,10 +995,10 @@ function AdminDashboard({ user, setUser }) {
                             <div className="adm-list-icon">🛒</div>
                             <div>
                               <h3 className="adm-list-title" style={{ margin: 0 }}>
-                                Commande #{purchase.id?.split("_")[1] || i + 1}
+                                Commande #{purchase.id}
                               </h3>
                               <div className="adm-list-meta" style={{ marginTop: 4 }}>
-                                <span>👤 {purchase.userName || `User #${purchase.userId}`}</span>
+                                <span>👤 {purchase.user_name || purchase.user_email || `User #${purchase.user_id}`}</span>
                                 <span>🕓 {dateStr}</span>
                                 <span style={{ color: "#d4a843", fontWeight: 700 }}>
                                   💰 {totalPurchase.toLocaleString("fr-TN")} TND
@@ -1041,25 +1057,11 @@ function AdminDashboard({ user, setUser }) {
                             <div style={{ display: "flex", gap: 6 }}>
                               <button
                                 className="adm-btn-sm adm-btn-success"
-                                onClick={() => {
-                                  const updated = purchases.map(p =>
-                                    p.id === purchase.id ? { ...p, statut: "acceptée" } : p
-                                  );
-                                  setPurchases(updated);
-                                  localStorage.setItem("tz_purchases_history", JSON.stringify(updated));
-                                  showToast("✅ Commande acceptée.");
-                                }}
+                                onClick={() => updateStatutCommande(purchase.id, "acceptée")}
                               >✅ Accepter</button>
                               <button
                                 className="adm-btn-sm adm-btn-warn"
-                                onClick={() => {
-                                  const updated = purchases.map(p =>
-                                    p.id === purchase.id ? { ...p, statut: "refusée" } : p
-                                  );
-                                  setPurchases(updated);
-                                  localStorage.setItem("tz_purchases_history", JSON.stringify(updated));
-                                  showToast("❌ Commande refusée.");
-                                }}
+                                onClick={() => updateStatutCommande(purchase.id, "refusée")}
                               >❌ Refuser</button>
                             </div>
                           )}
@@ -1067,12 +1069,7 @@ function AdminDashboard({ user, setUser }) {
                           {isSuperAdmin && (
                             <button
                               className="adm-btn-sm adm-btn-del"
-                              onClick={() => {
-                                const updated = purchases.filter(p => p.id !== purchase.id);
-                                setPurchases(updated);
-                                localStorage.setItem("tz_purchases_history", JSON.stringify(updated));
-                                showToast("🗑 Commande supprimée.");
-                              }}
+                              onClick={() => deleteCommande(purchase.id)}
                             >🗑 Supprimer</button>
                           )}
                         </div>
