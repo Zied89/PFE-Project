@@ -58,8 +58,14 @@ function AdminDashboard({ user, setUser }) {
   const [users, setUsers] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [inscriptions, setInscriptions] = useState([]);
-  const [purchases, setPurchases] = useState([]);
+  const [formations, setFormations] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // ── Formations CRUD (gestion des formations) ──
+  const [formationModal, setFormationModal] = useState(null); // { mode: "add" | "edit", data }
+  const [formationForm, setFormationForm] = useState({});
+  const [formationDeleteConfirm, setFormationDeleteConfirm] = useState(null);
+  const [formationSearch, setFormationSearch] = useState("");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("tous");
@@ -89,22 +95,22 @@ function AdminDashboard({ user, setUser }) {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [uRes, rRes, iRes, cRes] = await Promise.all([
+      const [uRes, rRes, iRes, fRes] = await Promise.all([
         fetch(`${API}/admin/users`, { headers: authHeaders() }),
         fetch(`${API}/coworking/reservations`, { headers: authHeaders() }),
         fetch(`${API}/formations/inscriptions/all`, { headers: authHeaders() }),
-        fetch(`${API}/commandes/all`, { headers: authHeaders() }),
+        fetch(`${API}/formations`, { headers: authHeaders() }),
       ]);
 
       const uData = uRes.ok ? await uRes.json() : { users: [] };
       const rData = rRes.ok ? await rRes.json() : { reservations: [] };
       const iData = iRes.ok ? await iRes.json() : { inscriptions: [] };
-      const cData = cRes.ok ? await cRes.json() : { commandes: [] };
+      const fData = fRes.ok ? await fRes.json() : { formations: [] };
 
       setUsers(uData.users || []);
       setReservations(rData.reservations || []);
       setInscriptions(iData.inscriptions || []);
-      setPurchases(cData.commandes || []);
+      setFormations(fData.formations || []);
     } catch (err) {
       showToast("Impossible de charger les données.", "error");
     } finally {
@@ -338,30 +344,113 @@ function AdminDashboard({ user, setUser }) {
     } catch { showToast("Erreur de connexion au serveur.", "error"); }
   };
 
-  const updateStatutCommande = async (id, statut) => {
-    try {
-      const res = await fetch(`${API}/commandes/${id}/statut`, {
-        method: "PUT", headers: authHeaders(),
-        body: JSON.stringify({ statut }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        return showToast(`❌ ${errData?.message || `Erreur ${res.status}`}`, "error");
-      }
-      fetchAll();
-      showToast(statut === "acceptée" ? "✅ Commande acceptée." : "❌ Commande refusée.");
-    } catch (err) { showToast(`Erreur : ${err.message}`, "error"); }
+  /* ── Formations (gestion) ── */
+  const FORMATION_TAGS = ["Tech", "Créatif", "Business", "IA & Data", "Entrepreneuriat & Startup"];
+
+  const emptyFormation = {
+    titre: "", description: "", tag: "Tech", categorie: "Tech",
+    duree: "", prix: "", minParticipants: 5, maxParticipants: 20,
+    icon: "📚", modules: [],
   };
 
-  const deleteCommande = async (id) => {
+  const openAddFormation = () => {
+    setFormationForm({ ...emptyFormation });
+    setFormationModal({ mode: "add" });
+  };
+
+  const openEditFormation = (f) => {
+    setFormationForm({
+      ...f,
+      minParticipants: f.minParticipants ?? f.min_participants ?? 5,
+      maxParticipants: f.maxParticipants ?? f.max_participants ?? f.places ?? 20,
+      modules: Array.isArray(f.modules) ? f.modules : [],
+    });
+    setFormationModal({ mode: "edit", data: f });
+  };
+
+  const closeFormationModal = () => { setFormationModal(null); setFormationForm({}); };
+
+  const addModuleRow = () => {
+    setFormationForm((f) => ({ ...f, modules: [...(f.modules || []), { titre: "", duree: "", prix: "" }] }));
+  };
+  const updateModuleRow = (idx, key, val) => {
+    setFormationForm((f) => {
+      const modules = [...(f.modules || [])];
+      modules[idx] = { ...modules[idx], [key]: val };
+      return { ...f, modules };
+    });
+  };
+  const removeModuleRow = (idx) => {
+    setFormationForm((f) => ({ ...f, modules: (f.modules || []).filter((_, i) => i !== idx) }));
+  };
+
+  const handleSaveFormation = async () => {
+    if (!formationForm.titre?.trim()) return showToast("Le titre de la formation est requis.", "error");
+    if (formationForm.prix === "" || formationForm.prix == null || Number(formationForm.prix) < 0)
+      return showToast("Un prix valide est requis.", "error");
+
+    const minP = formationForm.minParticipants === "" ? 0 : Number(formationForm.minParticipants);
+    const maxP = formationForm.maxParticipants === "" ? 0 : Number(formationForm.maxParticipants);
+    if (minP < 0 || maxP < 0) return showToast("Le nombre de participants ne peut pas être négatif.", "error");
+    if (maxP && minP && maxP < minP)
+      return showToast("Le maximum de participants doit être supérieur ou égal au minimum.", "error");
+
+    const cleanModules = (formationForm.modules || [])
+      .filter((m) => m.titre && m.titre.trim())
+      .map((m) => ({ titre: m.titre.trim(), duree: m.duree || "", prix: m.prix === "" || m.prix == null ? 0 : Number(m.prix) }));
+
+    const isEdit = formationModal.mode === "edit";
+    const payload = {
+      titre: formationForm.titre.trim(),
+      description: formationForm.description || "",
+      tag: formationForm.tag || "Tech",
+      categorie: formationForm.categorie || formationForm.tag || "Tech",
+      duree: formationForm.duree || "",
+      prix: Number(formationForm.prix),
+      minParticipants: minP,
+      maxParticipants: maxP,
+      places: maxP,
+      icon: formationForm.icon || "📚",
+      modules: cleanModules,
+    };
+
     try {
-      const res = await fetch(`${API}/commandes/${id}`, {
+      const url = isEdit ? `${API}/formations/${formationModal.data.id}` : `${API}/formations`;
+      const res = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        return showToast(d?.message || "Erreur serveur.", "error");
+      }
+      closeFormationModal();
+      fetchAll();
+      showToast(isEdit ? "Formation mise à jour." : "Formation créée avec succès.");
+    } catch {
+      showToast("Erreur de connexion au serveur.", "error");
+    }
+  };
+
+  const handleDeleteFormation = async () => {
+    try {
+      const res = await fetch(`${API}/formations/${formationDeleteConfirm.id}`, {
         method: "DELETE", headers: authHeaders(),
       });
       if (!res.ok) return showToast("Erreur lors de la suppression.", "error");
-      fetchAll(); showToast("🗑 Commande supprimée.");
-    } catch { showToast("Erreur de connexion au serveur.", "error"); }
+      setFormationDeleteConfirm(null);
+      fetchAll();
+      showToast("🗑 Formation supprimée.");
+    } catch {
+      showToast("Erreur de connexion au serveur.", "error");
+    }
   };
+
+  const filteredFormations = formations.filter((f) => {
+    const s = formationSearch.toLowerCase();
+    return s === "" || f.titre?.toLowerCase().includes(s) || f.tag?.toLowerCase().includes(s) || f.categorie?.toLowerCase().includes(s);
+  });
 
   /* ── Stats data ── */
   const roleStats = [
@@ -393,8 +482,8 @@ function AdminDashboard({ user, setUser }) {
     { id: "users",        label: "Utilisateurs", icon: "👥", count: kpis.total,               pending: 0 },
     { id: "reservations", label: "Réservations",  icon: "📅", count: pendingReservations.length, pending: pendingReservations.length },
     { id: "calendrier",   label: "Calendrier",    icon: "🗓", count: null,                       pending: 0 },
+    { id: "formations",   label: "Formations",    icon: "📚", count: formations.length,          pending: 0 },
     { id: "inscriptions", label: "Inscriptions",  icon: "🎓", count: pendingInscriptions.length,  pending: pendingInscriptions.length },
-    { id: "achats",       label: "Achats",         icon: "🛒", count: purchases.length,           pending: purchases.filter(p => p.statut === "en_attente").length },
     { id: "historique",   label: "Historique",    icon: "🕓", count: kpis.historyCount,          pending: 0 },
     { id: "stats",        label: "Statistiques",  icon: "📊", count: null,                       pending: 0 },
   ];
@@ -896,6 +985,64 @@ function AdminDashboard({ user, setUser }) {
           );
         })()}
 
+        {/* ══ TAB: FORMATIONS (gestion : participants, modules, prix) ══ */}
+        {activeTab === "formations" && (
+          <>
+            <div className="adm-toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
+              <h2 className="adm-section-title">Gestion des formations</h2>
+              <div className="adm-toolbar-right">
+                <div className="adm-search">
+                  <span className="adm-search-icon">🔍</span>
+                  <input
+                    type="text" placeholder="Rechercher une formation..."
+                    value={formationSearch} onChange={(e) => setFormationSearch(e.target.value)}
+                  />
+                </div>
+                <button className="adm-btn-sm adm-btn-success" onClick={openAddFormation}>
+                  ＋ Nouvelle formation
+                </button>
+              </div>
+            </div>
+
+            {filteredFormations.length === 0 ? (
+              <div className="adm-empty">
+                <div className="adm-empty-icon">📚</div>
+                <p>Aucune formation trouvée.</p>
+                <p className="adm-empty-sub">Créez une formation pour commencer.</p>
+              </div>
+            ) : (
+              <div className="adm-list">
+                {filteredFormations.map((f, i) => {
+                  const minP = f.minParticipants ?? f.min_participants;
+                  const maxP = f.maxParticipants ?? f.max_participants ?? f.places;
+                  const nbModules = Array.isArray(f.modules) ? f.modules.length : 0;
+                  return (
+                    <div className="adm-list-card" key={f.id} style={{ animationDelay: `${i * 0.05}s`, borderLeft: "4px solid #1a6fc4" }}>
+                      <div className="adm-list-left">
+                        <div className="adm-list-icon">{f.icon || "📚"}</div>
+                        <div>
+                          <h3 className="adm-list-title">{f.titre}</h3>
+                          <div className="adm-list-meta">
+                            <span className="adm-badge badge-user">{f.tag || f.categorie}</span>
+                            <span>💰 {Number(f.prix || 0).toLocaleString("fr-TN")} TND</span>
+                            <span>👥 {minP != null ? minP : "—"}–{maxP != null ? maxP : "—"} participants</span>
+                            <span>🧩 {nbModules} module{nbModules > 1 ? "s" : ""}</span>
+                            {f.duree && <span>⏱ {f.duree}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="adm-list-right">
+                        <button className="adm-btn-sm adm-btn-edit" onClick={() => openEditFormation(f)}>✏ Modifier</button>
+                        <button className="adm-btn-sm adm-btn-del" onClick={() => setFormationDeleteConfirm(f)}>🗑 Supprimer</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
         {/* ══ TAB: INSCRIPTIONS (en_attente uniquement) ══ */}
         {activeTab === "inscriptions" && (
           <>
@@ -924,166 +1071,43 @@ function AdminDashboard({ user, setUser }) {
               </div>
             ) : (
               <div className="adm-list">
-                {pendingInscriptions.map((ins, i) => (
-                  <div className="adm-list-card" key={ins.id} style={{
-                    animationDelay: `${i * 0.06}s`,
-                    borderLeft: "4px solid #f59e0b",
-                  }}>
-                    <div className="adm-list-left">
-                      <div className="adm-list-icon">🎓</div>
-                      <div>
-                        <h3 className="adm-list-title">{ins.formation_titre || `Formation #${ins.formation_id}`}</h3>
-                        <div className="adm-list-meta">
-                          <span>👤 {ins.user_name || ins.user_email || `ID ${ins.user_id}`}</span>
-                          {ins.created_at && <span>📅 {new Date(ins.created_at).toLocaleDateString("fr-TN")}</span>}
-                          {ins.prix && <span>💰 {Number(ins.prix).toLocaleString("fr-TN")} TND</span>}
+                {pendingInscriptions.map((ins, i) => {
+                  const isCours = ins.type === "cours";
+                  const titre = isCours ? ins.cours_titre : (ins.formation_titre || `Formation #${ins.formation_id}`);
+                  const prix = isCours ? ins.cours_prix : ins.formation_prix;
+                  return (
+                    <div className="adm-list-card" key={ins.id} style={{
+                      animationDelay: `${i * 0.06}s`,
+                      borderLeft: "4px solid #f59e0b",
+                    }}>
+                      <div className="adm-list-left">
+                        <div className="adm-list-icon">{isCours ? "📘" : "🎓"}</div>
+                        <div>
+                          <h3 className="adm-list-title">{titre}</h3>
+                          <div className="adm-list-meta">
+                            <span className={`adm-badge ${isCours ? "badge-admin" : "badge-user"}`}>
+                              {isCours ? "Cours individuel" : "Formation complète"}
+                            </span>
+                            {isCours && ins.formation_titre && <span>📚 dans {ins.formation_titre}</span>}
+                            <span>👤 {ins.user_name || ins.user_email || `ID ${ins.user_id}`}</span>
+                            {ins.created_at && <span>📅 {new Date(ins.created_at).toLocaleDateString("fr-TN")}</span>}
+                            {prix != null && <span>💰 {Number(prix).toLocaleString("fr-TN")} TND</span>}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="adm-list-right">
-                      <span className="adm-badge badge-suspendu">⏳ En attente</span>
-                      <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutInscription(ins.id, "acceptée")}>
-                        ✅ Accepter
-                      </button>
-                      <button className="adm-btn-sm adm-btn-warn" onClick={() => updateStatutInscription(ins.id, "refusée")}>
-                        ❌ Refuser
-                      </button>
-                      {isSuperAdmin && (
-                        <button className="adm-btn-sm adm-btn-del" onClick={() => deleteInscription(ins.id)}>
-                          🗑 Supprimer
+                      <div className="adm-list-right">
+                        <span className="adm-badge badge-suspendu">⏳ En attente</span>
+                        <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutInscription(ins.id, "acceptée")}>
+                          ✅ Accepter
                         </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ══ TAB: ACHATS (Formation purchases) ══ */}
-        {activeTab === "achats" && (
-          <>
-            <div className="adm-toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
-              <h2 className="adm-section-title">
-                Historique des Achats Formation
-                <span style={{ marginLeft: 10, fontSize: "0.78rem", background: "#d4a843", color: "#1a1206", borderRadius: 20, padding: "2px 10px", fontWeight: 800 }}>
-                  🛒 {purchases.length} commande{purchases.length !== 1 ? "s" : ""}
-                </span>
-              </h2>
-              <div className="adm-toolbar-right" style={{ gap: 4 }}>
-                <span style={{ fontSize: "0.75rem", color: "#94a3b8", padding: "5px 10px" }}>
-                  Synchronisé avec la base de données
-                </span>
-              </div>
-            </div>
-
-            {purchases.length === 0 ? (
-              <div className="adm-empty">
-                <div className="adm-empty-icon">🛒</div>
-                <p>Aucun achat enregistré.</p>
-                <p className="adm-empty-sub">Les achats effectués sur la page Formation apparaîtront ici.</p>
-              </div>
-            ) : (
-              <div className="adm-list">
-                {purchases.map((purchase, i) => {
-                  const totalPurchase = purchase.total || purchase.items?.reduce((a, f) => a + Number(f.prix || 0), 0) || 0;
-                  const dateStr = purchase.created_at ? new Date(purchase.created_at).toLocaleString("fr-TN") : "—";
-                  const isAccepted = purchase.statut === "acceptée";
-                  const isRefused  = purchase.statut === "refusée";
-                  const isPending  = !isAccepted && !isRefused;
-
-                  return (
-                    <div className="adm-list-card" key={purchase.id} style={{
-                      animationDelay: `${i * 0.05}s`,
-                      borderLeft: `4px solid ${isPending ? "#d4a843" : isAccepted ? "#22c55e" : "#ef4444"}`,
-                      background: "rgba(255,255,255,0.025)",
-                    }}>
-                      {/* Header de la commande */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%", flexWrap: "wrap", gap: 12 }}>
-                        <div style={{ flex: 1, minWidth: 200 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                            <div className="adm-list-icon">🛒</div>
-                            <div>
-                              <h3 className="adm-list-title" style={{ margin: 0 }}>
-                                Commande #{purchase.id}
-                              </h3>
-                              <div className="adm-list-meta" style={{ marginTop: 4 }}>
-                                <span>👤 {purchase.user_name || purchase.user_email || `User #${purchase.user_id}`}</span>
-                                <span>🕓 {dateStr}</span>
-                                <span style={{ color: "#d4a843", fontWeight: 700 }}>
-                                  💰 {totalPurchase.toLocaleString("fr-TN")} TND
-                                </span>
-                                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                                  {purchase.items?.length || 0} article{(purchase.items?.length || 0) > 1 ? "s" : ""}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Items de la commande */}
-                          <div style={{
-                            marginLeft: 48, display: "flex", flexWrap: "wrap", gap: 6,
-                          }}>
-                            {(purchase.items || []).map((item, j) => (
-                              <div key={j} style={{
-                                display: "flex", alignItems: "center", gap: 6,
-                                padding: "4px 10px",
-                                background: "rgba(212,168,67,0.08)",
-                                border: "1px solid rgba(212,168,67,0.2)",
-                                borderRadius: 8,
-                                fontSize: "0.78rem",
-                              }}>
-                                {item.icon && <span>{item.icon}</span>}
-                                <span style={{ color: "#e2c97e" }}>{item.titre}</span>
-                                {item.tag && (
-                                  <span style={{
-                                    fontSize: "0.65rem", padding: "1px 6px",
-                                    background: "rgba(255,255,255,0.07)", borderRadius: 20,
-                                    color: "#94a3b8",
-                                  }}>{item.tag}</span>
-                                )}
-                                <span style={{ color: "#d4a843", fontWeight: 700 }}>
-                                  {Number(item.prix).toLocaleString("fr-TN")} TND
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Statut + actions */}
-                        <div className="adm-list-right" style={{ flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                          {isPending && (
-                            <span className="adm-badge badge-suspendu">⏳ En attente</span>
-                          )}
-                          {isAccepted && (
-                            <span className="adm-badge badge-actif">✅ Accepté</span>
-                          )}
-                          {isRefused && (
-                            <span className="adm-badge badge-inactif">❌ Refusé</span>
-                          )}
-
-                          {/* Admin peut changer le statut de la commande */}
-                          {isPending && (
-                            <div style={{ display: "flex", gap: 6 }}>
-                              <button
-                                className="adm-btn-sm adm-btn-success"
-                                onClick={() => updateStatutCommande(purchase.id, "acceptée")}
-                              >✅ Accepter</button>
-                              <button
-                                className="adm-btn-sm adm-btn-warn"
-                                onClick={() => updateStatutCommande(purchase.id, "refusée")}
-                              >❌ Refuser</button>
-                            </div>
-                          )}
-
-                          {isSuperAdmin && (
-                            <button
-                              className="adm-btn-sm adm-btn-del"
-                              onClick={() => deleteCommande(purchase.id)}
-                            >🗑 Supprimer</button>
-                          )}
-                        </div>
+                        <button className="adm-btn-sm adm-btn-warn" onClick={() => updateStatutInscription(ins.id, "refusée")}>
+                          ❌ Refuser
+                        </button>
+                        {isSuperAdmin && (
+                          <button className="adm-btn-sm adm-btn-del" onClick={() => deleteInscription(ins.id)}>
+                            🗑 Supprimer
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -1161,6 +1185,11 @@ function AdminDashboard({ user, setUser }) {
                 <div className="adm-list">
                   {filtered.map((item, i) => {
                     const isReserv  = item._kind === "reservation";
+                    const isCoursItem = !isReserv && item.type === "cours";
+                    const histTitre = isReserv
+                      ? item.item_nom
+                      : (isCoursItem ? item.cours_titre : (item.formation_titre || `Formation #${item.formation_id}`));
+                    const histPrix = isReserv ? null : (isCoursItem ? item.cours_prix : item.formation_prix);
                     const isAccepted = item.statut === "acceptée";
                     const isCancelled = item.statut === "annulée";
                     const borderColor = isAccepted ? "#22c55e" : isCancelled ? "#94a3b8" : "#ef4444";
@@ -1173,26 +1202,23 @@ function AdminDashboard({ user, setUser }) {
                       }}>
                         <div className="adm-list-left">
                           <div className="adm-list-icon">
-                            {isReserv ? (item.type === "salle" ? "🏢" : "🪑") : "🎓"}
+                            {isReserv ? (item.type === "salle" ? "🏢" : "🪑") : (isCoursItem ? "📘" : "🎓")}
                           </div>
                           <div>
-                            <h3 className="adm-list-title">
-                              {isReserv
-                                ? item.item_nom
-                                : (item.formation_titre || `Formation #${item.formation_id}`)}
-                            </h3>
+                            <h3 className="adm-list-title">{histTitre}</h3>
                             <div className="adm-list-meta">
                               {/* Type pill */}
                               <span className={`adm-badge ${isReserv ? "badge-admin" : "badge-user"}`}>
-                                {isReserv ? "Réservation" : "Inscription"}
+                                {isReserv ? "Réservation" : (isCoursItem ? "Cours individuel" : "Formation complète")}
                               </span>
+                              {isCoursItem && item.formation_titre && <span>📚 dans {item.formation_titre}</span>}
                               <span>👤 {item.user_name || item.user_email || `ID ${item.user_id}`}</span>
                               {isReserv && item.date && <span>📅 {item.date}</span>}
                               {isReserv && item.heure_debut && (
                                 <span>⏱ {item.heure_debut} – {item.heure_fin}</span>
                               )}
-                              {!isReserv && item.prix && (
-                                <span>💰 {Number(item.prix).toLocaleString("fr-TN")} TND</span>
+                              {!isReserv && histPrix != null && (
+                                <span>💰 {Number(histPrix).toLocaleString("fr-TN")} TND</span>
                               )}
                               {item.created_at && (
                                 <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
@@ -1526,6 +1552,159 @@ function AdminDashboard({ user, setUser }) {
             <div className="adm-form-actions">
               <button className="adm-btn-cancel" onClick={() => setDeleteConfirm(null)}>Annuler</button>
               <button className="adm-btn-del-confirm" onClick={handleDelete}>Supprimer</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {formationModal && (
+        <Modal
+          title={formationModal.mode === "add" ? "Nouvelle formation" : "Modifier la formation"}
+          onClose={closeFormationModal}
+        >
+          <div className="adm-form">
+            <span className="adm-form-label">Titre</span>
+            <input
+              className="adm-form-input" type="text" placeholder="Ex: Data Science avec Python"
+              value={formationForm.titre || ""}
+              onChange={(e) => setFormationForm((f) => ({ ...f, titre: e.target.value }))}
+            />
+
+            <span className="adm-form-label">Description</span>
+            <textarea
+              className="adm-form-input" rows={3} placeholder="Courte description de la formation"
+              style={{ resize: "vertical", fontFamily: "inherit" }}
+              value={formationForm.description || ""}
+              onChange={(e) => setFormationForm((f) => ({ ...f, description: e.target.value }))}
+            />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+              <div>
+                <span className="adm-form-label">Catégorie</span>
+                <select
+                  className="adm-form-select"
+                  value={formationForm.tag || "Tech"}
+                  onChange={(e) => setFormationForm((f) => ({ ...f, tag: e.target.value, categorie: e.target.value }))}
+                >
+                  {FORMATION_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <span className="adm-form-label">Durée</span>
+                <input
+                  className="adm-form-input" type="text" placeholder="Ex: 6 semaines"
+                  value={formationForm.duree || ""}
+                  onChange={(e) => setFormationForm((f) => ({ ...f, duree: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 14px" }}>
+              <div>
+                <span className="adm-form-label">Prix (TND)</span>
+                <input
+                  className="adm-form-input" type="number" min="0" placeholder="Ex: 250"
+                  value={formationForm.prix ?? ""}
+                  onChange={(e) => setFormationForm((f) => ({ ...f, prix: e.target.value }))}
+                />
+              </div>
+              <div>
+                <span className="adm-form-label">Min. participants</span>
+                <input
+                  className="adm-form-input" type="number" min="0" placeholder="Ex: 5"
+                  value={formationForm.minParticipants ?? ""}
+                  onChange={(e) => setFormationForm((f) => ({ ...f, minParticipants: e.target.value }))}
+                />
+              </div>
+              <div>
+                <span className="adm-form-label">Max. participants</span>
+                <input
+                  className="adm-form-input" type="number" min="0" placeholder="Ex: 20"
+                  value={formationForm.maxParticipants ?? ""}
+                  onChange={(e) => setFormationForm((f) => ({ ...f, maxParticipants: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* ── Modules ── */}
+            <div style={{ marginTop: 6, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span className="adm-form-label" style={{ margin: 0 }}>Modules ({(formationForm.modules || []).length})</span>
+              <button
+                type="button"
+                className="adm-btn-sm adm-btn-edit"
+                onClick={addModuleRow}
+              >
+                ＋ Ajouter un module
+              </button>
+            </div>
+
+            {(formationForm.modules || []).length === 0 ? (
+              <p style={{ fontSize: "0.8rem", color: "#94a3b8", margin: "2px 0 8px" }}>
+                Aucun module — la formation apparaîtra sans programme détaillé.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+                {formationForm.modules.map((m, idx) => (
+                  <div key={idx} style={{
+                    display: "grid", gridTemplateColumns: "1fr 110px 100px auto",
+                    gap: 8, alignItems: "center",
+                    background: "rgba(148,163,184,0.08)", borderRadius: 10, padding: "8px 10px",
+                  }}>
+                    <input
+                      className="adm-form-input" type="text" placeholder="Titre du module"
+                      style={{ margin: 0 }}
+                      value={m.titre || ""}
+                      onChange={(e) => updateModuleRow(idx, "titre", e.target.value)}
+                    />
+                    <input
+                      className="adm-form-input" type="text" placeholder="Durée"
+                      style={{ margin: 0 }}
+                      value={m.duree || ""}
+                      onChange={(e) => updateModuleRow(idx, "duree", e.target.value)}
+                    />
+                    <input
+                      className="adm-form-input" type="number" min="0" placeholder="Prix"
+                      style={{ margin: 0 }}
+                      value={m.prix ?? ""}
+                      onChange={(e) => updateModuleRow(idx, "prix", e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeModuleRow(idx)}
+                      title="Retirer ce module"
+                      style={{
+                        background: "none", border: "none", color: "#ef4444",
+                        cursor: "pointer", fontSize: "1.1rem", padding: "0 4px",
+                      }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="adm-form-actions">
+              <button className="adm-btn-cancel" onClick={closeFormationModal}>Annuler</button>
+              <button className="adm-btn-save" onClick={handleSaveFormation}>
+                {formationModal.mode === "add" ? "Créer" : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {formationDeleteConfirm && (
+        <Modal title="Confirmer la suppression" onClose={() => setFormationDeleteConfirm(null)}>
+          <div className="adm-form">
+            <p className="adm-delete-msg">
+              Voulez-vous vraiment supprimer la formation <strong>{formationDeleteConfirm.titre}</strong> ?
+              <br />
+              <span style={{ fontSize: 12, color: "#c0392b" }}>
+                Cette action est irréversible et supprimera aussi ses modules associés.
+              </span>
+            </p>
+            <div className="adm-form-actions">
+              <button className="adm-btn-cancel" onClick={() => setFormationDeleteConfirm(null)}>Annuler</button>
+              <button className="adm-btn-del-confirm" onClick={handleDeleteFormation}>Supprimer</button>
             </div>
           </div>
         </Modal>

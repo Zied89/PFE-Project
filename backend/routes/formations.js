@@ -1,4 +1,3 @@
-
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
@@ -27,7 +26,8 @@ router.get("/inscriptions/me", authMiddleware, async (req, res) => {
 router.get("/inscriptions/all", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { rows: inscriptions } = await db.query(
-      `SELECT i.*, u.name AS user_name, u.email AS user_email, f.titre AS formation_titre
+      `SELECT i.*, u.name AS user_name, u.email AS user_email,
+              f.titre AS formation_titre, f.prix AS formation_prix
        FROM inscriptions i
        LEFT JOIN users u ON u.id = i.user_id
        LEFT JOIN formations f ON f.id = i.formation_id
@@ -149,22 +149,40 @@ router.get("/", authMiddleware, async (req, res) => {
 
 // POST /api/formations (admin)
 router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
-  const { titre, categorie, description, duree, prix, places, tag, icon, accent } = req.body;
+  const {
+    titre, categorie, description, duree, prix, places, tag, icon, accent,
+    minParticipants, maxParticipants, modules,
+  } = req.body;
   if (!titre || !categorie || !description)
     return res.status(400).json({ message: "Titre, catégorie et description sont obligatoires." });
 
+  const minP = minParticipants !== undefined && minParticipants !== null && minParticipants !== ""
+    ? Number(minParticipants) : 5;
+  const maxP = maxParticipants !== undefined && maxParticipants !== null && maxParticipants !== ""
+    ? Number(maxParticipants) : (places || 20);
+
+  if (Number.isNaN(minP) || Number.isNaN(maxP) || minP < 0 || maxP < 0)
+    return res.status(400).json({ message: "Nombre de participants invalide." });
+  if (maxP < minP)
+    return res.status(400).json({ message: "Le maximum de participants doit être ≥ au minimum." });
+
   try {
     const { rows } = await db.query(
-      `INSERT INTO formations (titre, categorie, description, duree, prix, places, tag, icon, accent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO formations
+         (titre, categorie, description, duree, prix, places, tag, icon, accent,
+          min_participants, max_participants, modules)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [
         titre, categorie, description,
         duree  || "3 mois",
         prix   || 0,
-        places || 20,
+        maxP,
         tag    || "Tech",
         icon   || "📚",
         accent || "gold",
+        minP,
+        maxP,
+        JSON.stringify(Array.isArray(modules) ? modules : []),
       ]
     );
     return res.status(201).json({ formation: rows[0] });
@@ -192,7 +210,20 @@ router.get("/:id", authMiddleware, async (req, res) => {
 // PUT /api/formations/:id (admin)
 router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { titre, categorie, description, duree, prix, places, tag, icon, accent } = req.body;
+  const {
+    titre, categorie, description, duree, prix, places, tag, icon, accent,
+    minParticipants, maxParticipants, modules,
+  } = req.body;
+
+  const minP = minParticipants !== undefined && minParticipants !== null && minParticipants !== ""
+    ? Number(minParticipants) : 5;
+  const maxP = maxParticipants !== undefined && maxParticipants !== null && maxParticipants !== ""
+    ? Number(maxParticipants) : (places || 20);
+
+  if (Number.isNaN(minP) || Number.isNaN(maxP) || minP < 0 || maxP < 0)
+    return res.status(400).json({ message: "Nombre de participants invalide." });
+  if (maxP < minP)
+    return res.status(400).json({ message: "Le maximum de participants doit être ≥ au minimum." });
 
   try {
     const check = await db.query("SELECT id FROM formations WHERE id = $1", [id]);
@@ -202,9 +233,14 @@ router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
     const { rows } = await db.query(
       `UPDATE formations
        SET titre=$1, categorie=$2, description=$3, duree=$4, prix=$5,
-           places=$6, tag=$7, icon=$8, accent=$9
-       WHERE id=$10 RETURNING *`,
-      [titre, categorie, description, duree, prix, places, tag, icon, accent, id]
+           places=$6, tag=$7, icon=$8, accent=$9,
+           min_participants=$10, max_participants=$11, modules=$12
+       WHERE id=$13 RETURNING *`,
+      [
+        titre, categorie, description, duree, prix, maxP, tag, icon, accent,
+        minP, maxP, JSON.stringify(Array.isArray(modules) ? modules : []),
+        id,
+      ]
     );
     return res.json({ formation: rows[0] });
   } catch (err) {
@@ -255,6 +291,46 @@ router.post("/:id/inscrire", authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error("[inscrire POST]", err);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+});
+
+// POST /api/formations/:id/cours/inscrire (auth)
+// Inscription à un cours individuel au sein d'une formation. Les cours sont
+// un catalogue statique côté frontend (pas de table dédiée en base), donc le
+// titre/durée/prix du cours sont transmis dans le corps de la requête et
+// stockés directement sur la ligne d'inscription (type = "cours").
+router.post("/:id/cours/inscrire", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { titre, duree, prix } = req.body;
+
+  if (!titre || !titre.trim())
+    return res.status(400).json({ message: "Titre du cours requis." });
+
+  try {
+    const formCheck = await db.query("SELECT id, titre FROM formations WHERE id = $1", [id]);
+    if (!formCheck.rows.length)
+      return res.status(404).json({ message: "Formation introuvable." });
+
+    const existing = await db.query(
+      `SELECT id FROM inscriptions
+       WHERE user_id = $1 AND formation_id = $2 AND type = 'cours' AND cours_titre = $3`,
+      [req.user.id, id, titre.trim()]
+    );
+    if (existing.rows.length)
+      return res.status(409).json({ message: "Vous êtes déjà inscrit à ce cours." });
+
+    const { rows } = await db.query(
+      `INSERT INTO inscriptions (user_id, formation_id, statut, type, cours_titre, cours_duree, cours_prix)
+       VALUES ($1, $2, 'en_attente', 'cours', $3, $4, $5) RETURNING *`,
+      [req.user.id, id, titre.trim(), duree || null, prix != null ? Number(prix) : 0]
+    );
+    return res.status(201).json({
+      inscription: rows[0],
+      message: `Inscription au cours "${titre}" confirmée !`,
+    });
+  } catch (err) {
+    console.error("[cours inscrire POST]", err);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 });

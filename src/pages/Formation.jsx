@@ -166,9 +166,14 @@ function Formation({ user }) {
           : []),
         // Cours individuels
         ...courseItems.map((course) =>
-          fetch(`${API}/formations/${course._formationId}/cours/${course.id}/inscrire`, {
+          fetch(`${API}/formations/${course._formationId}/cours/inscrire`, {
             method: "POST",
             headers: authHeaders(),
+            body: JSON.stringify({
+              titre: course.title,
+              duree: course.duration,
+              prix: course.prix,
+            }),
           })
         ),
       ]);
