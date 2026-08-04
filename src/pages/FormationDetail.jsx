@@ -183,33 +183,81 @@ function FormationDetail({ user }) {
       icon: item.icon,
     }));
 
-    try {
-      const promises = [];
-      if (formationItems.length > 0) {
-        promises.push(
-          fetch(`${API}/formations/inscrire-multiple`, {
-            method: "POST", headers: authHeaders(),
-            body: JSON.stringify({ formationIds: formationItems.map(f => f.id) })
-          })
-        );
-      }
-      if (courseItems.length > 0) {
-        courseItems.forEach(course => {
-          promises.push(
-            fetch(`${API}/formations/${course._formationId}/cours/inscrire`, {
-              method: "POST", headers: authHeaders(),
-              body: JSON.stringify({
-                titre: course.title,
-                duree: course.duration,
-                prix: course.prix,
-              }),
-            })
-          );
-        });
-      }
-      await Promise.all(promises);
+    // Chaque opération est étiquetée pour pouvoir signaler précisément
+    // ce qui a échoué (le fetch ne rejette JAMAIS sur une erreur HTTP —
+    // il faut vérifier res.ok explicitement, sinon les échecs passent
+    // inaperçus alors que la commande, elle, est bien enregistrée).
+    const ops = [];
+    if (formationItems.length > 0) {
+      ops.push({
+        kind: "formations",
+        label: `${formationItems.length} formation(s)`,
+        promise: fetch(`${API}/formations/inscrire-multiple`, {
+          method: "POST", headers: authHeaders(),
+          body: JSON.stringify({ formationIds: formationItems.map(f => f.id) }),
+        }),
+      });
+    }
+    courseItems.forEach(course => {
+      ops.push({
+        kind: "course",
+        label: course.title,
+        promise: fetch(`${API}/formations/${course._formationId}/cours/inscrire`, {
+          method: "POST", headers: authHeaders(),
+          body: JSON.stringify({
+            titre: course.title,
+            duree: course.duration,
+            prix: course.prix,
+          }),
+        }),
+      });
+    });
 
-      // Enregistrer la commande (visible dans "Mes commandes" et l'admin)
+    try {
+      const settled = await Promise.allSettled(ops.map(o => o.promise));
+
+      let successCount = 0;
+      const alreadyLabels = [];
+      const failedLabels = [];
+
+      for (let i = 0; i < settled.length; i++) {
+        const op = ops[i];
+        const result = settled[i];
+
+        if (result.status !== "fulfilled") {
+          failedLabels.push(`${op.label} (connexion)`);
+          console.error(`Erreur réseau [${op.label}]:`, result.reason);
+          continue;
+        }
+
+        const res = result.value;
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          if (op.kind === "formations") {
+            successCount += data.added?.length || 0;
+            if (data.already?.length > 0) alreadyLabels.push(`${data.already.length} formation(s) déjà inscrite(s)`);
+          } else {
+            successCount += 1;
+          }
+        } else if (res.status === 409) {
+          alreadyLabels.push(op.label);
+        } else {
+          failedLabels.push(`${op.label} (${data.message || `Erreur ${res.status}`})`);
+          console.error(`Erreur inscription [${op.label}]:`, res.status, data.message);
+        }
+      }
+
+      if (successCount === 0 && failedLabels.length === 0 && alreadyLabels.length > 0) {
+        setErrorMsg("⚠️ Vous êtes déjà inscrit(e) à tous ces éléments.");
+        return;
+      }
+      if (successCount === 0 && failedLabels.length > 0) {
+        setErrorMsg(`❌ Échec de l'inscription : ${failedLabels.join(", ")}`);
+        return;
+      }
+
+      // Au moins un succès — enregistrer la commande (visible dans "Mes commandes" et l'admin)
       try {
         const cmdRes = await fetch(`${API}/commandes`, {
           method: "POST",
@@ -221,10 +269,16 @@ function FormationDetail({ user }) {
         console.error("Erreur enregistrement commande:", cmdErr);
       }
 
-      showSuccess("Inscriptions confirmées !");
       setCart([]);
       setShowCart(false);
-    } catch {
+
+      if (failedLabels.length > 0) {
+        showSuccess(`✅ ${successCount} inscription(s) confirmée(s). ⚠️ Échec pour : ${failedLabels.join(", ")}`);
+      } else {
+        showSuccess("Inscriptions confirmées !");
+      }
+    } catch (err) {
+      console.error(err);
       setErrorMsg("Erreur lors de la confirmation.");
     }
   };
@@ -247,8 +301,19 @@ function FormationDetail({ user }) {
     </div>
   );
 
-  // Recherche par categorie (correspondance exacte avec la DB)
-  const courses = coursesByCategory[formation.categorie] || [];
+  // Programme réel de la formation (créé/modifié depuis l'admin — "Gestion des
+  // formations"). On retombe sur le catalogue statique par catégorie
+  // uniquement si l'admin n'a pas encore défini de modules pour cette
+  // formation, pour ne pas casser les formations existantes.
+  const dbModules = Array.isArray(formation.modules) ? formation.modules : [];
+  const courses = dbModules.length > 0
+    ? dbModules.map((m, i) => ({
+        id: i + 1,
+        title: m.titre,
+        duration: m.duree || null,
+        prix: Number(m.prix || 0),
+      }))
+    : (coursesByCategory[formation.categorie] || []);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   return (
@@ -356,6 +421,11 @@ function FormationDetail({ user }) {
           <div className="fd-hero-meta">
             <span>⏱ {formation.duree}</span>
             <span>🪑 {formation.places} places</span>
+            {(formation.minParticipants ?? formation.min_participants) != null && (
+              <span>
+                👥 {formation.minParticipants ?? formation.min_participants}–{formation.maxParticipants ?? formation.max_participants ?? formation.places} participants
+              </span>
+            )}
             <span>💰 {Number(formation.prix).toLocaleString("fr-TN")} TND</span>
           </div>
           <div className="hero-divider" />
@@ -378,6 +448,11 @@ function FormationDetail({ user }) {
 
       {/* Courses list */}
       <div className="fd-list">
+        {courses.length > 0 && (
+          <h2 style={{ margin: "0 0 1rem", fontSize: "1.1rem", color: "#fff", opacity: 0.85 }}>
+            📋 Programme{dbModules.length === 0 && " (aperçu standard)"}
+          </h2>
+        )}
         {courses.length === 0 ? (
           <div style={{ textAlign: "center", padding: "3rem", opacity: 0.5 }}>
             <p>Aucun programme disponible pour cette catégorie : <strong>{formation.categorie}</strong></p>
@@ -392,11 +467,13 @@ function FormationDetail({ user }) {
                   <div style={{ flex: 1 }}>
                     <h2 className="fd-course-title">{course.title}</h2>
                     <div className="fd-course-meta">
-                      <span className="fd-meta-item">⏱ {course.duration}</span>
-                      <span className="fd-meta-item">👥 {course.students} inscrits</span>
-                      <span className={`fd-level ${levelColors[course.level] || ""}`}>{course.level}</span>
+                      {course.duration && <span className="fd-meta-item">⏱ {course.duration}</span>}
+                      {course.students != null && <span className="fd-meta-item">👥 {course.students} inscrits</span>}
+                      {course.level && (
+                        <span className={`fd-level ${levelColors[course.level] || ""}`}>{course.level}</span>
+                      )}
                       <span className="fd-meta-item fd-prix">
-                        💰 {course.prix.toLocaleString("fr-TN")} TND
+                        💰 {Number(course.prix || 0).toLocaleString("fr-TN")} TND
                       </span>
                     </div>
                   </div>

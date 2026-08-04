@@ -350,7 +350,7 @@ function AdminDashboard({ user, setUser }) {
   const emptyFormation = {
     titre: "", description: "", tag: "Tech", categorie: "Tech",
     duree: "", prix: "", minParticipants: 5, maxParticipants: 20,
-    icon: "📚", modules: [],
+    icon: "📚", modules: [], sessions: [],
   };
 
   const openAddFormation = () => {
@@ -364,6 +364,7 @@ function AdminDashboard({ user, setUser }) {
       minParticipants: f.minParticipants ?? f.min_participants ?? 5,
       maxParticipants: f.maxParticipants ?? f.max_participants ?? f.places ?? 20,
       modules: Array.isArray(f.modules) ? f.modules : [],
+      sessions: Array.isArray(f.sessions) ? f.sessions : [],
     });
     setFormationModal({ mode: "edit", data: f });
   };
@@ -384,6 +385,24 @@ function AdminDashboard({ user, setUser }) {
     setFormationForm((f) => ({ ...f, modules: (f.modules || []).filter((_, i) => i !== idx) }));
   };
 
+  // ── Sessions (dates de tenue de la formation) ──
+  const addSessionRow = () => {
+    setFormationForm((f) => ({
+      ...f,
+      sessions: [...(f.sessions || []), { titre: "", dateDebut: "", dateFin: "", lieu: "", capacite: "" }],
+    }));
+  };
+  const updateSessionRow = (idx, key, val) => {
+    setFormationForm((f) => {
+      const sessions = [...(f.sessions || [])];
+      sessions[idx] = { ...sessions[idx], [key]: val };
+      return { ...f, sessions };
+    });
+  };
+  const removeSessionRow = (idx) => {
+    setFormationForm((f) => ({ ...f, sessions: (f.sessions || []).filter((_, i) => i !== idx) }));
+  };
+
   const handleSaveFormation = async () => {
     if (!formationForm.titre?.trim()) return showToast("Le titre de la formation est requis.", "error");
     if (formationForm.prix === "" || formationForm.prix == null || Number(formationForm.prix) < 0)
@@ -399,6 +418,25 @@ function AdminDashboard({ user, setUser }) {
       .filter((m) => m.titre && m.titre.trim())
       .map((m) => ({ titre: m.titre.trim(), duree: m.duree || "", prix: m.prix === "" || m.prix == null ? 0 : Number(m.prix) }));
 
+    // ── Sessions : on ne garde que celles avec au moins une date de début ──
+    const cleanSessions = (formationForm.sessions || [])
+      .filter((s) => s.dateDebut)
+      .map((s) => ({
+        titre: (s.titre || "").trim(),
+        dateDebut: s.dateDebut,
+        dateFin: s.dateFin || s.dateDebut,
+        lieu: (s.lieu || "").trim(),
+        capacite: s.capacite === "" || s.capacite == null ? null : Number(s.capacite),
+      }));
+    for (const s of cleanSessions) {
+      if (s.dateFin < s.dateDebut) {
+        return showToast("❌ La date de fin d'une session ne peut pas précéder sa date de début.", "error");
+      }
+      if (s.capacite != null && s.capacite < 0) {
+        return showToast("❌ La capacité d'une session ne peut pas être négative.", "error");
+      }
+    }
+
     const isEdit = formationModal.mode === "edit";
     const payload = {
       titre: formationForm.titre.trim(),
@@ -412,6 +450,7 @@ function AdminDashboard({ user, setUser }) {
       places: maxP,
       icon: formationForm.icon || "📚",
       modules: cleanModules,
+      sessions: cleanSessions,
     };
 
     try {
@@ -452,6 +491,41 @@ function AdminDashboard({ user, setUser }) {
     return s === "" || f.titre?.toLowerCase().includes(s) || f.tag?.toLowerCase().includes(s) || f.categorie?.toLowerCase().includes(s);
   });
 
+  /* ── Occupation des formations (calculée à partir des inscriptions acceptées) ──
+     Une place est occupée soit par une inscription "formation complète", soit
+     par une inscription à un module ("cours") de cette formation. */
+  const getFormationOccupation = (formationId) => {
+    const accepted = inscriptions.filter(
+      (i) => i.statut === "acceptée" && String(i.formation_id) === String(formationId)
+    );
+    return {
+      total: accepted.length,
+      complete: accepted.filter((i) => i.type !== "cours").length,
+      parCours: accepted.filter((i) => i.type === "cours").length,
+    };
+  };
+
+  // Occupation d'un module précis (regroupement par titre — pas d'id stable côté modules)
+  const getModuleOccupation = (formationId, moduleTitre) =>
+    inscriptions.filter(
+      (i) =>
+        i.statut === "acceptée" &&
+        i.type === "cours" &&
+        String(i.formation_id) === String(formationId) &&
+        i.cours_titre === moduleTitre
+    ).length;
+
+  // Statut d'une session déduit de ses dates
+  const sessionStatut = (s) => {
+    if (!s.dateDebut) return { label: "Non planifiée", color: "#94a3b8" };
+    const now = new Date();
+    const debut = new Date(s.dateDebut);
+    const fin = s.dateFin ? new Date(s.dateFin) : debut;
+    if (now > fin) return { label: "Terminée", color: "#64748b" };
+    if (now >= debut) return { label: "En cours", color: "#22c55e" };
+    return { label: "À venir", color: "#1a6fc4" };
+  };
+
   /* ── Stats data ── */
   const roleStats = [
     { label: "Utilisateurs", val: users.filter((u) => u.role === "user").length },
@@ -475,13 +549,68 @@ function AdminDashboard({ user, setUser }) {
   });
   const donutGradient = `conic-gradient(${donutSegments.join(", ")})`;
 
+  /* ── Taux d'occupation des salles (calculé à partir des vraies réservations) ── */
+  const OPENING_HOUR = 8;   // 08:00
+  const CLOSING_HOUR = 20;  // 20:00
+  const HOURS_PER_DAY = CLOSING_HOUR - OPENING_HOUR; // 12h/jour d'ouverture
+
+  const [occupancyPeriod, setOccupancyPeriod] = useState("30j"); // "7j" | "30j" | "mois"
+
+  const occupancyRange = (() => {
+    const now = new Date();
+    let start;
+    if (occupancyPeriod === "7j") {
+      start = new Date(now); start.setDate(start.getDate() - 6); start.setHours(0, 0, 0, 0);
+    } else if (occupancyPeriod === "mois") {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else {
+      start = new Date(now); start.setDate(start.getDate() - 29); start.setHours(0, 0, 0, 0);
+    }
+    const end = new Date(now); end.setHours(23, 59, 59, 999);
+    const days = Math.max(1, Math.round((end - start) / 86400000) + 1);
+    return { start, end, days };
+  })();
+
+  const dureeHeures = (r) => {
+    const d1 = toMinutes(r.heure_debut), d2 = toMinutes(r.heure_fin);
+    if (d1 == null || d2 == null || d2 <= d1) return 0;
+    return (d2 - d1) / 60;
+  };
+
+  const salleReservationsAcceptees = reservations.filter((r) => {
+    if (r.type !== "salle" || r.statut !== "acceptée") return false;
+    const d = new Date(r.date);
+    return d >= occupancyRange.start && d <= occupancyRange.end;
+  });
+
+  const salleOccupancy = (() => {
+    const byName = {};
+    salleReservationsAcceptees.forEach((r) => {
+      const nom = r.item_nom || `Salle #${r.salle_id ?? "?"}`;
+      if (!byName[nom]) byName[nom] = { nom, heures: 0, reservations: 0 };
+      byName[nom].heures += dureeHeures(r);
+      byName[nom].reservations += 1;
+    });
+    const capaciteTotale = occupancyRange.days * HOURS_PER_DAY;
+    return Object.values(byName)
+      .map((s) => ({ ...s, taux: capaciteTotale > 0 ? Math.min(100, (s.heures / capaciteTotale) * 100) : 0 }))
+      .sort((a, b) => b.taux - a.taux);
+  })();
+
+  const tauxOccupationMoyen = salleOccupancy.length > 0
+    ? salleOccupancy.reduce((acc, s) => acc + s.taux, 0) / salleOccupancy.length
+    : 0;
+
+  const totalHeuresReservees = salleOccupancy.reduce((acc, s) => acc + s.heures, 0);
+  const salleLaPlusDemandee = salleOccupancy[0] || null;
+
   const handleLogout = () => { setUser(null); navigate("/login"); };
 
   /* ── TABS config ── */
   const TABS = [
     { id: "users",        label: "Utilisateurs", icon: "👥", count: kpis.total,               pending: 0 },
-    { id: "reservations", label: "Réservations",  icon: "📅", count: pendingReservations.length, pending: pendingReservations.length },
-    { id: "calendrier",   label: "Calendrier",    icon: "🗓", count: null,                       pending: 0 },
+    { id: "reservations", label: "Date De Réservations",  icon: "📅", count: pendingReservations.length, pending: pendingReservations.length },
+    { id: "calendrier",   label: "Calendrier De Réservations",    icon: "🗓", count: null,                       pending: 0 },
     { id: "formations",   label: "Formations",    icon: "📚", count: formations.length,          pending: 0 },
     { id: "inscriptions", label: "Inscriptions",  icon: "🎓", count: pendingInscriptions.length,  pending: pendingInscriptions.length },
     { id: "historique",   label: "Historique",    icon: "🕓", count: kpis.historyCount,          pending: 0 },
@@ -620,6 +749,7 @@ function AdminDashboard({ user, setUser }) {
           { icon: "✅", val: kpis.actifs,                   label: "Comptes actifs" },
           { icon: "📅", val: pendingReservations.length,    label: "Réservations en attente" },
           { icon: "🎓", val: pendingInscriptions.length,    label: "Inscriptions en attente" },
+          { icon: "🏢", val: `${Math.round(tauxOccupationMoyen)}%`, label: `Occupation salles (${occupancyPeriod === "7j" ? "7j" : occupancyPeriod === "mois" ? "ce mois" : "30j"})` },
           { icon: "🕓", val: kpis.historyCount,             label: "Traitées (historique)" },
         ].map((k, i) => (
           <div className="adm-kpi" key={k.label} style={{ animationDelay: `${i * 0.07}s` }}>
@@ -1016,24 +1146,79 @@ function AdminDashboard({ user, setUser }) {
                   const minP = f.minParticipants ?? f.min_participants;
                   const maxP = f.maxParticipants ?? f.max_participants ?? f.places;
                   const nbModules = Array.isArray(f.modules) ? f.modules.length : 0;
+                  const occ = getFormationOccupation(f.id);
+                  const capacite = Number(maxP) || 0;
+                  const pctOcc = capacite > 0 ? Math.min(100, Math.round((occ.total / capacite) * 100)) : 0;
+                  const barColor = pctOcc >= 100 ? "#ef4444" : pctOcc >= 70 ? "#f59e0b" : "#22c55e";
+                  const sessions = Array.isArray(f.sessions) ? f.sessions : [];
+                  const sessionsTriees = [...sessions].sort((a, b) => (a.dateDebut || "").localeCompare(b.dateDebut || ""));
                   return (
-                    <div className="adm-list-card" key={f.id} style={{ animationDelay: `${i * 0.05}s`, borderLeft: "4px solid #1a6fc4" }}>
-                      <div className="adm-list-left">
-                        <div className="adm-list-icon">{f.icon || "📚"}</div>
-                        <div>
-                          <h3 className="adm-list-title">{f.titre}</h3>
-                          <div className="adm-list-meta">
-                            <span className="adm-badge badge-user">{f.tag || f.categorie}</span>
-                            <span>💰 {Number(f.prix || 0).toLocaleString("fr-TN")} TND</span>
-                            <span>👥 {minP != null ? minP : "—"}–{maxP != null ? maxP : "—"} participants</span>
-                            <span>🧩 {nbModules} module{nbModules > 1 ? "s" : ""}</span>
-                            {f.duree && <span>⏱ {f.duree}</span>}
+                    <div className="adm-list-card" key={f.id} style={{ animationDelay: `${i * 0.05}s`, borderLeft: "4px solid #1a6fc4", flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                        <div className="adm-list-left">
+                          <div className="adm-list-icon">{f.icon || "📚"}</div>
+                          <div>
+                            <h3 className="adm-list-title">{f.titre}</h3>
+                            <div className="adm-list-meta">
+                              <span className="adm-badge badge-user">{f.tag || f.categorie}</span>
+                              <span>💰 {Number(f.prix || 0).toLocaleString("fr-TN")} TND</span>
+                              <span>👥 {minP != null ? minP : "—"}–{maxP != null ? maxP : "—"} participants</span>
+                              <span>🧩 {nbModules} module{nbModules > 1 ? "s" : ""}</span>
+                              {f.duree && <span>⏱ {f.duree}</span>}
+                            </div>
                           </div>
                         </div>
+                        <div className="adm-list-right">
+                          <button className="adm-btn-sm adm-btn-edit" onClick={() => openEditFormation(f)}>✏ Modifier</button>
+                          <button className="adm-btn-sm adm-btn-del" onClick={() => setFormationDeleteConfirm(f)}>🗑 Supprimer</button>
+                        </div>
                       </div>
-                      <div className="adm-list-right">
-                        <button className="adm-btn-sm adm-btn-edit" onClick={() => openEditFormation(f)}>✏ Modifier</button>
-                        <button className="adm-btn-sm adm-btn-del" onClick={() => setFormationDeleteConfirm(f)}>🗑 Supprimer</button>
+
+                      {/* ── Occupation & sessions ── */}
+                      <div style={{ borderTop: "1px solid rgba(148,163,184,0.15)", paddingTop: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: sessions.length ? 10 : 0 }}>
+                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569", minWidth: 150, flexShrink: 0 }}>
+                            🪑 Occupation : {occ.total}/{capacite || "—"}
+                          </span>
+                          <div style={{ flex: 1, height: 8, borderRadius: 6, background: "rgba(148,163,184,0.2)", overflow: "hidden" }}>
+                            <div style={{ width: `${pctOcc}%`, height: "100%", background: barColor, borderRadius: 6, transition: "width .3s" }} />
+                          </div>
+                          <span style={{ fontSize: "0.72rem", fontWeight: 700, color: barColor, minWidth: 34, textAlign: "right" }}>{pctOcc}%</span>
+                          {occ.parCours > 0 && (
+                            <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>
+                              (dont {occ.parCours} par module)
+                            </span>
+                          )}
+                        </div>
+
+                        {sessionsTriees.length === 0 ? (
+                          <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0 }}>
+                            Aucune session planifiée pour cette formation.
+                          </p>
+                        ) : (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {sessionsTriees.map((s, si) => {
+                              const st = sessionStatut(s);
+                              const dDebut = s.dateDebut ? new Date(s.dateDebut).toLocaleDateString("fr-TN") : "?";
+                              const dFin = s.dateFin ? new Date(s.dateFin).toLocaleDateString("fr-TN") : null;
+                              return (
+                                <span
+                                  key={si}
+                                  title={s.titre || ""}
+                                  style={{
+                                    fontSize: "0.72rem", fontWeight: 600, padding: "3px 10px", borderRadius: 20,
+                                    background: `${st.color}1a`, color: st.color, border: `1px solid ${st.color}55`,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  📅 {dDebut}{dFin && dFin !== dDebut ? ` → ${dFin}` : ""}
+                                  {s.lieu ? ` · ${s.lieu}` : ""}
+                                  {s.capacite != null ? ` · ${s.capacite} places` : ""} · {st.label}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1132,7 +1317,7 @@ function AdminDashboard({ user, setUser }) {
                 {/* Type filter */}
                 {[
                   { key: "tous",          label: "🗂 Tous",          color: "#1a6fc4" },
-                  { key: "reservations",  label: "📅 Réservations",  color: "#8b5cf6" },
+                  { key: "reservations",  label: "📅 Demandes De Réservations",  color: "#8b5cf6" },
                   { key: "inscriptions",  label: "🎓 Inscriptions",  color: "#0ea5e9" },
                 ].map((f) => (
                   <button key={f.key} onClick={() => setHistTypeFilter(f.key)} style={{
@@ -1268,6 +1453,112 @@ function AdminDashboard({ user, setUser }) {
           <>
             <div className="adm-toolbar">
               <h2 className="adm-section-title">Statistiques</h2>
+            </div>
+
+            {/* ── Taux d'occupation des salles ── */}
+            <div className="adm-toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
+              <h2 className="adm-section-title">🏢 Taux d'occupation des salles</h2>
+              <div className="adm-toolbar-right">
+                {[
+                  { id: "7j",   label: "7 derniers jours" },
+                  { id: "30j",  label: "30 derniers jours" },
+                  { id: "mois", label: "Ce mois-ci" },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    className="adm-btn-sm"
+                    onClick={() => setOccupancyPeriod(p.id)}
+                    style={{
+                      border: "1.5px solid #1a6fc4",
+                      background: occupancyPeriod === p.id ? "#1a6fc4" : "transparent",
+                      color: occupancyPeriod === p.id ? "#fff" : "#1a6fc4",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="adm-stats-row">
+              <div className="adm-stats-card">
+                <h3 className="adm-stats-card-title">📐 Occupation moyenne</h3>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "10px 0" }}>
+                  <span style={{ fontSize: "2.4rem", fontWeight: 800, color: "#0b3d78" }}>
+                    {Math.round(tauxOccupationMoyen)}%
+                  </span>
+                  <span style={{ color: "#78b8f0", fontSize: "0.85rem" }}>
+                    sur {occupancyRange.days} jour{occupancyRange.days > 1 ? "s" : ""} · {HOURS_PER_DAY}h/jour ouvrées
+                  </span>
+                </div>
+                <div className="adm-bar-track" style={{ height: 10 }}>
+                  <div className="adm-bar-fill" style={{ width: `${Math.min(100, tauxOccupationMoyen)}%` }} />
+                </div>
+              </div>
+
+              <div className="adm-stats-card">
+                <h3 className="adm-stats-card-title">⏱ Heures réservées</h3>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "10px 0" }}>
+                  <span style={{ fontSize: "2.4rem", fontWeight: 800, color: "#0b3d78" }}>
+                    {Math.round(totalHeuresReservees)}h
+                  </span>
+                  <span style={{ color: "#78b8f0", fontSize: "0.85rem" }}>
+                    sur {salleOccupancy.length} salle{salleOccupancy.length > 1 ? "s" : ""} réservée{salleOccupancy.length > 1 ? "s" : ""}
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "#5a7ea8" }}>
+                  Calculé à partir des réservations <strong>acceptées</strong> uniquement.
+                </p>
+              </div>
+
+              <div className="adm-stats-card">
+                <h3 className="adm-stats-card-title">🏆 Salle la plus demandée</h3>
+                {salleLaPlusDemandee ? (
+                  <>
+                    <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "#0b3d78", margin: "10px 0 4px" }}>
+                      {salleLaPlusDemandee.nom}
+                    </div>
+                    <p style={{ margin: 0, fontSize: "0.85rem", color: "#5a7ea8" }}>
+                      {Math.round(salleLaPlusDemandee.taux)}% d'occupation · {salleLaPlusDemandee.reservations} réservation{salleLaPlusDemandee.reservations > 1 ? "s" : ""} · {Math.round(salleLaPlusDemandee.heures)}h
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ color: "#94a3b8", marginTop: 10 }}>Aucune réservation de salle sur cette période.</p>
+                )}
+              </div>
+            </div>
+
+            {salleOccupancy.length > 0 && (
+              <div className="adm-stats-row" style={{ gridTemplateColumns: "1fr" }}>
+                <div className="adm-stats-card">
+                  <h3 className="adm-stats-card-title">📊 Détail par salle</h3>
+                  <div className="adm-bar-chart">
+                    {salleOccupancy.map((s) => (
+                      <div className="adm-bar-row" key={s.nom}>
+                        <span className="adm-bar-label" title={s.nom}>{s.nom}</span>
+                        <div className="adm-bar-track">
+                          <div
+                            className="adm-bar-fill"
+                            style={{
+                              width: `${Math.min(100, s.taux)}%`,
+                              background: s.taux >= 75 ? "#ef4444" : s.taux >= 40 ? "#f59e0b" : "#22c55e",
+                            }}
+                          />
+                        </div>
+                        <span className="adm-bar-val">{Math.round(s.taux)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ margin: "10px 0 0", fontSize: "0.75rem", color: "#94a3b8" }}>
+                    🟢 &lt;40% (sous-utilisée) · 🟠 40–75% (équilibrée) · 🔴 ≥75% (forte demande — envisager d'ajouter des créneaux)
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="adm-toolbar" style={{ marginTop: 8 }}>
+              <h2 className="adm-section-title">Vue d'ensemble</h2>
             </div>
             <div className="adm-stats-row">
 
@@ -1677,6 +1968,88 @@ function AdminDashboard({ user, setUser }) {
                         cursor: "pointer", fontSize: "1.1rem", padding: "0 4px",
                       }}
                     >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Sessions ── */}
+            <div style={{ marginTop: 6, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span className="adm-form-label" style={{ margin: 0 }}>Sessions ({(formationForm.sessions || []).length})</span>
+              <button
+                type="button"
+                className="adm-btn-sm adm-btn-edit"
+                onClick={addSessionRow}
+              >
+                ＋ Ajouter une session
+              </button>
+            </div>
+
+            {(formationForm.sessions || []).length === 0 ? (
+              <p style={{ fontSize: "0.8rem", color: "#94a3b8", margin: "2px 0 8px" }}>
+                Aucune session planifiée — ajoutez une date pour proposer une session concrète aux participants.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 8 }}>
+                {formationForm.sessions.map((s, idx) => (
+                  <div key={idx} style={{
+                    display: "flex", flexDirection: "column", gap: 6,
+                    background: "rgba(148,163,184,0.08)", borderRadius: 10, padding: "10px 12px",
+                  }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input
+                        className="adm-form-input" type="text" placeholder="Ex: Session Janvier 2027"
+                        style={{ margin: 0, flex: 1 }}
+                        value={s.titre || ""}
+                        onChange={(e) => updateSessionRow(idx, "titre", e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSessionRow(idx)}
+                        title="Retirer cette session"
+                        style={{
+                          background: "none", border: "none", color: "#ef4444",
+                          cursor: "pointer", fontSize: "1.1rem", padding: "0 4px",
+                        }}
+                      >✕</button>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 90px", gap: 8 }}>
+                      <div>
+                        <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Début</span>
+                        <input
+                          className="adm-form-input" type="date" style={{ margin: 0 }}
+                          value={s.dateDebut || ""}
+                          onChange={(e) => updateSessionRow(idx, "dateDebut", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Fin</span>
+                        <input
+                          className="adm-form-input" type="date" style={{ margin: 0 }}
+                          value={s.dateFin || ""}
+                          onChange={(e) => updateSessionRow(idx, "dateFin", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Lieu</span>
+                        <input
+                          className="adm-form-input" type="text" placeholder="Ex: Salle A / En ligne"
+                          style={{ margin: 0 }}
+                          value={s.lieu || ""}
+                          onChange={(e) => updateSessionRow(idx, "lieu", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Places</span>
+                        <input
+                          className="adm-form-input" type="number" min="0"
+                          placeholder={String(formationForm.maxParticipants ?? "")}
+                          style={{ margin: 0 }}
+                          value={s.capacite ?? ""}
+                          onChange={(e) => updateSessionRow(idx, "capacite", e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

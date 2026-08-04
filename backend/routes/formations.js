@@ -330,6 +330,9 @@ router.post("/:id/cours/inscrire", authMiddleware, async (req, res) => {
       message: `Inscription au cours "${titre}" confirmée !`,
     });
   } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ message: "Vous êtes déjà inscrit à ce cours ou à cette formation." });
+    }
     console.error("[cours inscrire POST]", err);
     return res.status(500).json({ message: "Erreur serveur." });
   }

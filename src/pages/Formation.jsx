@@ -154,66 +154,81 @@ function Formation({ user }) {
       icon: item.icon,
     }));
 
+    // Chaque opération est étiquetée pour pouvoir signaler précisément ce qui
+    // a échoué, au lieu de masquer les échecs dès qu'un seul item réussit.
+    const ops = [];
+    if (formationItems.length > 0) {
+      ops.push({
+        kind: "formations",
+        label: `${formationItems.length} formation(s)`,
+        promise: fetch(`${API}/formations/inscrire-multiple`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ formationIds: formationItems.map((f) => f.id) }),
+        }),
+      });
+    }
+    courseItems.forEach((course) =>
+      ops.push({
+        kind: "course",
+        label: course.title,
+        promise: fetch(`${API}/formations/${course._formationId}/cours/inscrire`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({
+            titre: course.title,
+            duree: course.duration,
+            prix: course.prix,
+          }),
+        }),
+      })
+    );
+
     try {
-      const results = await Promise.allSettled([
-        // Formations — inscrire-multiple
-        ...(formationItems.length > 0
-          ? [fetch(`${API}/formations/inscrire-multiple`, {
-              method: "POST",
-              headers: authHeaders(),
-              body: JSON.stringify({ formationIds: formationItems.map((f) => f.id) }),
-            })]
-          : []),
-        // Cours individuels
-        ...courseItems.map((course) =>
-          fetch(`${API}/formations/${course._formationId}/cours/inscrire`, {
-            method: "POST",
-            headers: authHeaders(),
-            body: JSON.stringify({
-              titre: course.title,
-              duree: course.duration,
-              prix: course.prix,
-            }),
-          })
-        ),
-      ]);
+      const settled = await Promise.allSettled(ops.map((o) => o.promise));
 
-      // Analyse des résultats
-      let hasSuccess = false;
-      let alreadyAll = false;
-      let hasError   = false;
+      let successCount = 0;
+      const alreadyLabels = [];
+      const failedLabels = [];
 
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          const res  = result.value;
-          const data = await res.json().catch(() => ({}));
+      for (let i = 0; i < settled.length; i++) {
+        const op = ops[i];
+        const result = settled[i];
 
-          if (res.ok) {
-            hasSuccess = true;
-            // Si certaines étaient déjà inscrites mais d'autres ajoutées
-            if (data.added?.length > 0) hasSuccess = true;
-            if (data.already?.length > 0 && data.added?.length === 0) alreadyAll = true;
-          } else if (res.status === 409) {
-            alreadyAll = true;
+        if (result.status !== "fulfilled") {
+          failedLabels.push(`${op.label} (connexion)`);
+          console.error(`Erreur réseau [${op.label}]:`, result.reason);
+          continue;
+        }
+
+        const res  = result.value;
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          if (op.kind === "formations") {
+            successCount += data.added?.length || 0;
+            if (data.already?.length > 0) alreadyLabels.push(`${data.already.length} formation(s) déjà inscrite(s)`);
           } else {
-            hasError = true;
-            console.error("Erreur inscription:", data.message);
+            successCount += 1;
           }
+        } else if (res.status === 409) {
+          alreadyLabels.push(op.label);
         } else {
-          hasError = true;
+          failedLabels.push(`${op.label} (${data.message || `Erreur ${res.status}`})`);
+          console.error(`Erreur inscription [${op.label}]:`, res.status, data.message);
         }
       }
 
-      if (alreadyAll && !hasSuccess) {
-        setErrorMsg("⚠️ Vous êtes déjà inscrit(e) à toutes ces formations.");
+      if (successCount === 0 && failedLabels.length === 0 && alreadyLabels.length > 0) {
+        setErrorMsg("⚠️ Vous êtes déjà inscrit(e) à tous ces éléments.");
         return;
       }
-      if (hasError && !hasSuccess) {
-        setErrorMsg("❌ Erreur lors de l'inscription. Veuillez réessayer.");
+      if (successCount === 0 && failedLabels.length > 0) {
+        setErrorMsg(`❌ Échec de l'inscription : ${failedLabels.join(", ")}`);
         return;
       }
 
-      // ✅ Succès — enregistrer la commande (visible dans "Mes commandes" et l'admin)
+      // Au moins un succès — enregistrer la commande (visible dans "Mes commandes" et l'admin)
       try {
         const cmdRes = await fetch(`${API}/commandes`, {
           method: "POST",
@@ -228,7 +243,12 @@ function Formation({ user }) {
       setCart([]);
       localStorage.removeItem(cartKey);
       setShowCart(false);
-      setSuccessMsg("✅ Inscription(s) confirmée(s) ! En attente de validation par l'admin.");
+
+      if (failedLabels.length > 0) {
+        setSuccessMsg(`✅ ${successCount} inscription(s) confirmée(s). ⚠️ Échec pour : ${failedLabels.join(", ")}`);
+      } else {
+        setSuccessMsg("✅ Inscription(s) confirmée(s) ! En attente de validation par l'admin.");
+      }
       fetchData();
 
     } catch (err) {
@@ -388,11 +408,19 @@ function Formation({ user }) {
       <div className="categories-grid">
         {filtered.map((f) => {
           const inCart = cart.some((c) => c.id === f.id && c._type === "formation");
+          const minP = f.minParticipants ?? f.min_participants;
+          const maxP = f.maxParticipants ?? f.max_participants ?? f.places;
+          const nbModules = Array.isArray(f.modules) ? f.modules.length : 0;
           return (
             <div key={f.id} className="cat-card">
               <div className="cat-icon">{getFormationIcon(f)}</div>
               <h2>{f.titre}</h2>
               <p>{f.description}</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", margin: "0.4rem 0", fontSize: "0.78rem", opacity: 0.75 }}>
+                {minP != null && <span>👥 {minP}–{maxP} pers.</span>}
+                {nbModules > 0 && <span>🧩 {nbModules} module{nbModules > 1 ? "s" : ""}</span>}
+                {f.duree && <span>⏱ {f.duree}</span>}
+              </div>
               <strong>{f.prix} TND</strong>
               <div className="cat-footer">
                 {!isAdmin && (
