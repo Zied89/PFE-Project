@@ -11,14 +11,29 @@ import DashboardRouter from "./pages/DashboardRouter";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import MesCommandes from "./pages/MesCommandes";
 import AdminModules from "./pages/AdminModules";
+import InscriptionConfirm from "./pages/InscriptionConfirm";
+import { restoreAuthFromBridge } from "./utils/inscriptionFlow";
 
 
 function App() {
   // ✅ sessionStorage = isolé par onglet (pas partagé entre onglets, contrairement à localStorage).
   // Chaque onglet peut donc avoir sa propre session connectée (compte user différent d'un compte admin par ex).
+  // Pour le nouvel onglet de confirmation d'inscription, on restaure l'auth depuis le pont
+  // localStorage (inscription_auth_bridge) posé par openInscriptionConfirmTab().
   const [user, setUser] = useState(() => {
     try {
       const saved = sessionStorage.getItem("user");
+
+      // Si sessionStorage est vide (nouvel onglet), on tente de restaurer depuis le pont.
+      if (!saved) {
+        const restored = restoreAuthFromBridge();
+        if (restored) {
+          const bridged = sessionStorage.getItem("user");
+          return bridged ? JSON.parse(bridged) : null;
+        }
+        return null;
+      }
+
       return saved ? JSON.parse(saved) : null;
     } catch {
       sessionStorage.removeItem("user");
@@ -117,12 +132,22 @@ function App() {
           }
         />
 
-        {/* Mes commandes (utilisateur connecté) */}
+{/* Mes commandes (utilisateur connecté) */}
         <Route
           path="/mes-commandes"
           element={
             <RequireAuth>
               <MesCommandes user={user} />
+            </RequireAuth>
+          }
+        />
+
+        {/* Confirmation d'inscription dans un nouvel onglet */}
+        <Route
+          path="/inscription/confirm"
+          element={
+            <RequireAuth>
+              <InscriptionConfirm />
             </RequireAuth>
           }
         />
