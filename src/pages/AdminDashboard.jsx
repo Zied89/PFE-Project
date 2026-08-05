@@ -609,7 +609,7 @@ function AdminDashboard({ user, setUser }) {
   /* ── TABS config ── */
   const TABS = [
     { id: "users",        label: "Utilisateurs", icon: "👥", count: kpis.total,               pending: 0 },
-    { id: "reservations", label: "Date De Réservations",  icon: "📅", count: pendingReservations.length, pending: pendingReservations.length },
+    { id: "reservations", label: "Demandes De Réservations",  icon: "📅", count: pendingReservations.length, pending: pendingReservations.length },
     { id: "calendrier",   label: "Calendrier De Réservations",    icon: "🗓", count: null,                       pending: 0 },
     { id: "formations",   label: "Formations",    icon: "📚", count: formations.length,          pending: 0 },
     { id: "inscriptions", label: "Inscriptions",  icon: "🎓", count: pendingInscriptions.length,  pending: pendingInscriptions.length },

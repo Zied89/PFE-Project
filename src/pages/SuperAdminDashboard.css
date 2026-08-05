@@ -23,7 +23,7 @@
   --sa-radius-sm: 10px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; font-size: 13px; padding: 0; color:white; }
 
 .sa-page {
   min-height: 100vh;
