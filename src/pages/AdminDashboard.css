@@ -54,7 +54,7 @@
 .btn-nav {
   font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 700;
   padding: 6px 16px; border: 1.5px solid #2a6cb5; border-radius: 20px;
-  background: transparent; color: #2a6cb5; cursor: pointer;
+  background: #2a6cb5; color: #ffff; cursor: pointer;
   letter-spacing: .04em; display: flex; align-items: center; gap: 5px;
   transition: background .2s, color .2s;
 }

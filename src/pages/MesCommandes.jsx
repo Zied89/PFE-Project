@@ -48,7 +48,7 @@ function MesCommandes({ user }) {
       <nav className="navbar">
         <div className="navbar-brand">
           <div className="brand-icon">⚡</div>
-          <span className="brand-name">TZ Prime Solutions</span>
+          <span className="brand-name">Elite Innovation</span>
         </div>
         <button className="btn-back" onClick={() => navigate("/formation")}>
           <span className="back-arrow">←</span> Retour aux formations

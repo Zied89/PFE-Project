@@ -275,7 +275,7 @@ function SuperAdminDashboard({ user, setUser }) {
       <nav className="sa-navbar">
         <div className="sa-navbar-brand">
           <div className="sa-brand-icon">👑</div>
-          <span className="sa-brand-name">TZ Prime Solutions</span>
+          <span className="sa-brand-name">Elite Innovation</span>
           <span className="sa-brand-badge">Super Admin</span>
         </div>
         <div className="sa-navbar-links">

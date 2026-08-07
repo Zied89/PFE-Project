@@ -214,7 +214,7 @@ const handleCheckout = async () => {
       <nav className="navbar">
         <div className="navbar-brand">
           <div className="brand-icon">⚡</div>
-          <span className="brand-name">TZ Prime Solutions</span>
+          <span className="brand-name">Elite Innovation</span>
         </div>
         <div className="navbar-links">
           {user && (
