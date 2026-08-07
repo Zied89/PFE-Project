@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./FormationDetail.css";
+import { openInscriptionConfirmTab } from "../utils/inscriptionFlow";
 
 const API = "http://localhost:5000/api";
 const authHeaders = () => ({
@@ -84,10 +85,9 @@ function FormationDetail({ user }) {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [formation, setFormation] = useState(null);
+const [formation, setFormation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
   // Panier partagé avec Formation.jsx via localStorage
@@ -103,11 +103,6 @@ function FormationDetail({ user }) {
   useEffect(() => {
     localStorage.setItem(cartKey(user?.id), JSON.stringify(cart));
   }, [cart, user?.id]);
-
-  const showSuccess = (msg) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(""), 3000);
-  };
 
   useEffect(() => {
     const fetchFormation = async () => {
@@ -168,119 +163,13 @@ function FormationDetail({ user }) {
     cart.some(f => f._cartKey === `course-${formation?.id}-${course.id}`);
 
 
-  const handleCheckout = async () => {
+const handleCheckout = async () => {
     if (cart.length === 0) return;
-    const formationItems = cart.filter(f => f._type === "formation");
-    const courseItems = cart.filter(f => f._type === "course");
 
-    // Instantané des articles du panier pour la commande (titre/prix figés à l'achat)
-    const commandeItems = cart.map((item) => ({
-      type: item._type === "course" ? "cours" : "formation",
-      formationId: item._type === "formation" ? item.id : item._formationId,
-      titre: item._label || item.titre || item.title,
-      prix: item.prix,
-      tag: item.tag,
-      icon: item.icon,
-    }));
-
-    // Chaque opération est étiquetée pour pouvoir signaler précisément
-    // ce qui a échoué (le fetch ne rejette JAMAIS sur une erreur HTTP —
-    // il faut vérifier res.ok explicitement, sinon les échecs passent
-    // inaperçus alors que la commande, elle, est bien enregistrée).
-    const ops = [];
-    if (formationItems.length > 0) {
-      ops.push({
-        kind: "formations",
-        label: `${formationItems.length} formation(s)`,
-        promise: fetch(`${API}/formations/inscrire-multiple`, {
-          method: "POST", headers: authHeaders(),
-          body: JSON.stringify({ formationIds: formationItems.map(f => f.id) }),
-        }),
-      });
-    }
-    courseItems.forEach(course => {
-      ops.push({
-        kind: "course",
-        label: course.title,
-        promise: fetch(`${API}/formations/${course._formationId}/cours/inscrire`, {
-          method: "POST", headers: authHeaders(),
-          body: JSON.stringify({
-            titre: course.title,
-            duree: course.duration,
-            prix: course.prix,
-          }),
-        }),
-      });
-    });
-
-    try {
-      const settled = await Promise.allSettled(ops.map(o => o.promise));
-
-      let successCount = 0;
-      const alreadyLabels = [];
-      const failedLabels = [];
-
-      for (let i = 0; i < settled.length; i++) {
-        const op = ops[i];
-        const result = settled[i];
-
-        if (result.status !== "fulfilled") {
-          failedLabels.push(`${op.label} (connexion)`);
-          console.error(`Erreur réseau [${op.label}]:`, result.reason);
-          continue;
-        }
-
-        const res = result.value;
-        const data = await res.json().catch(() => ({}));
-
-        if (res.ok) {
-          if (op.kind === "formations") {
-            successCount += data.added?.length || 0;
-            if (data.already?.length > 0) alreadyLabels.push(`${data.already.length} formation(s) déjà inscrite(s)`);
-          } else {
-            successCount += 1;
-          }
-        } else if (res.status === 409) {
-          alreadyLabels.push(op.label);
-        } else {
-          failedLabels.push(`${op.label} (${data.message || `Erreur ${res.status}`})`);
-          console.error(`Erreur inscription [${op.label}]:`, res.status, data.message);
-        }
-      }
-
-      if (successCount === 0 && failedLabels.length === 0 && alreadyLabels.length > 0) {
-        setErrorMsg("⚠️ Vous êtes déjà inscrit(e) à tous ces éléments.");
-        return;
-      }
-      if (successCount === 0 && failedLabels.length > 0) {
-        setErrorMsg(`❌ Échec de l'inscription : ${failedLabels.join(", ")}`);
-        return;
-      }
-
-      // Au moins un succès — enregistrer la commande (visible dans "Mes commandes" et l'admin)
-      try {
-        const cmdRes = await fetch(`${API}/commandes`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ items: commandeItems }),
-        });
-        if (!cmdRes.ok) console.error("Erreur enregistrement commande:", await cmdRes.text());
-      } catch (cmdErr) {
-        console.error("Erreur enregistrement commande:", cmdErr);
-      }
-
-      setCart([]);
-      setShowCart(false);
-
-      if (failedLabels.length > 0) {
-        showSuccess(`✅ ${successCount} inscription(s) confirmée(s). ⚠️ Échec pour : ${failedLabels.join(", ")}`);
-      } else {
-        showSuccess("Inscriptions confirmées !");
-      }
-    } catch (err) {
-      console.error(err);
-      setErrorMsg("Erreur lors de la confirmation.");
-    }
+    // Ouvre un nouvel onglet qui affiche les mois de formation et les détails,
+    // où l'utilisateur choisit de confirmer ou de refuser l'inscription.
+    openInscriptionConfirmTab();
+    setShowCart(false);
   };
 
   // ── Render states ──────────────────────────────────────────────────────────
@@ -325,7 +214,7 @@ function FormationDetail({ user }) {
       <nav className="navbar">
         <div className="navbar-brand">
           <div className="brand-icon">⚡</div>
-          <span className="brand-name">TZ Prime Solutions</span>
+          <span className="brand-name">Elite Innovation</span>
         </div>
         <div className="navbar-links">
           {user && (
@@ -373,34 +262,9 @@ function FormationDetail({ user }) {
       </nav>
 
       {/* Alerts */}
-      {errorMsg && (
+{errorMsg && (
         <div style={{ maxWidth: 900, margin: "1rem auto 0", padding: "0.7rem 1.2rem", background: "rgba(239,68,68,0.15)", border: "1px solid #ef4444", borderRadius: 8, color: "#fca5a5" }}>
           {errorMsg} <button onClick={() => setErrorMsg("")} style={{ marginLeft: 8, background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>✕</button>
-        </div>
-      )}
-      {successMsg && (
-        <div
-          style={{
-            position: "fixed",
-            top: "1.25rem",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 9999,
-            maxWidth: "min(700px, 90vw)",
-            padding: "0.9rem 1.6rem",
-            background: "rgba(16, 60, 50, 0.55)",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
-            border: "1px solid #22ff88",
-            borderRadius: 14,
-            color: "#4ade80",
-            fontWeight: 600,
-            textAlign: "center",
-            boxShadow: "0 0 24px rgba(34,255,136,0.35)",
-            animation: "toastSlideDown 0.3s ease",
-          }}
-        >
-          {successMsg}
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Formation.css";
+import { openInscriptionConfirmTab } from "../utils/inscriptionFlow";
 
 const API = "http://localhost:5000/api";
 
@@ -134,127 +135,18 @@ function Formation({ user }) {
 
   const total = cart.reduce((acc, f) => acc + Number(f.prix || 0), 0);
 
-  /* ── Checkout ── */
+/* ── Checkout ── */
   const handleCheckout = async () => {
     if (!user) { navigate("/login"); return; }
+    if (cart.length === 0) return;
 
     setErrorMsg("");
     setSuccessMsg("");
 
-    const formationItems = cart.filter((f) => f._type === "formation");
-    const courseItems    = cart.filter((f) => f._type === "course");
-
-    // Instantané des articles du panier pour la commande (titre/prix figés à l'achat)
-    const commandeItems = cart.map((item) => ({
-      type: item._type === "course" ? "cours" : "formation",
-      formationId: item._type === "formation" ? item.id : item._formationId,
-      titre: item._label || item.titre || item.title,
-      prix: item.prix,
-      tag: item.tag,
-      icon: item.icon,
-    }));
-
-    // Chaque opération est étiquetée pour pouvoir signaler précisément ce qui
-    // a échoué, au lieu de masquer les échecs dès qu'un seul item réussit.
-    const ops = [];
-    if (formationItems.length > 0) {
-      ops.push({
-        kind: "formations",
-        label: `${formationItems.length} formation(s)`,
-        promise: fetch(`${API}/formations/inscrire-multiple`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ formationIds: formationItems.map((f) => f.id) }),
-        }),
-      });
-    }
-    courseItems.forEach((course) =>
-      ops.push({
-        kind: "course",
-        label: course.title,
-        promise: fetch(`${API}/formations/${course._formationId}/cours/inscrire`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({
-            titre: course.title,
-            duree: course.duration,
-            prix: course.prix,
-          }),
-        }),
-      })
-    );
-
-    try {
-      const settled = await Promise.allSettled(ops.map((o) => o.promise));
-
-      let successCount = 0;
-      const alreadyLabels = [];
-      const failedLabels = [];
-
-      for (let i = 0; i < settled.length; i++) {
-        const op = ops[i];
-        const result = settled[i];
-
-        if (result.status !== "fulfilled") {
-          failedLabels.push(`${op.label} (connexion)`);
-          console.error(`Erreur réseau [${op.label}]:`, result.reason);
-          continue;
-        }
-
-        const res  = result.value;
-        const data = await res.json().catch(() => ({}));
-
-        if (res.ok) {
-          if (op.kind === "formations") {
-            successCount += data.added?.length || 0;
-            if (data.already?.length > 0) alreadyLabels.push(`${data.already.length} formation(s) déjà inscrite(s)`);
-          } else {
-            successCount += 1;
-          }
-        } else if (res.status === 409) {
-          alreadyLabels.push(op.label);
-        } else {
-          failedLabels.push(`${op.label} (${data.message || `Erreur ${res.status}`})`);
-          console.error(`Erreur inscription [${op.label}]:`, res.status, data.message);
-        }
-      }
-
-      if (successCount === 0 && failedLabels.length === 0 && alreadyLabels.length > 0) {
-        setErrorMsg("⚠️ Vous êtes déjà inscrit(e) à tous ces éléments.");
-        return;
-      }
-      if (successCount === 0 && failedLabels.length > 0) {
-        setErrorMsg(`❌ Échec de l'inscription : ${failedLabels.join(", ")}`);
-        return;
-      }
-
-      // Au moins un succès — enregistrer la commande (visible dans "Mes commandes" et l'admin)
-      try {
-        const cmdRes = await fetch(`${API}/commandes`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ items: commandeItems }),
-        });
-        if (!cmdRes.ok) console.error("Erreur enregistrement commande:", await cmdRes.text());
-      } catch (cmdErr) {
-        console.error("Erreur enregistrement commande:", cmdErr);
-      }
-
-      setCart([]);
-      localStorage.removeItem(cartKey);
-      setShowCart(false);
-
-      if (failedLabels.length > 0) {
-        setSuccessMsg(`✅ ${successCount} inscription(s) confirmée(s). ⚠️ Échec pour : ${failedLabels.join(", ")}`);
-      } else {
-        setSuccessMsg("✅ Inscription(s) confirmée(s) ! En attente de validation par l'admin.");
-      }
-      fetchData();
-
-    } catch (err) {
-      console.error(err);
-      setErrorMsg("❌ Erreur de connexion au serveur.");
-    }
+    // Ouvre un nouvel onglet qui affiche les mois de formation et les détails,
+    // où l'utilisateur choisit de confirmer ou de refuser.
+    openInscriptionConfirmTab();
+    setShowCart(false);
   };
 
   /* ── Loading ── */
@@ -271,7 +163,7 @@ function Formation({ user }) {
       <nav className="navbar">
         <div className="navbar-brand">
           <div className="brand-icon">⚡</div>
-          <span className="brand-name">TZ Prime Solutions</span>
+          <span className="brand-name">Elite Innovation</span>
         </div>
 
         <div className="navbar-links">

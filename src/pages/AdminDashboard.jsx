@@ -688,7 +688,7 @@ function AdminDashboard({ user, setUser }) {
           <div className="brand-icon" style={isSuperAdmin ? { background: "linear-gradient(135deg,#7c3aed,#a78bfa)", boxShadow: "0 0 16px rgba(124,58,237,0.5)" } : {}}>
             {isSuperAdmin ? "👑" : "🛡"}
           </div>
-          <span className="brand-name" style={isSuperAdmin ? { color: "#c084fc" } : {}}>TZ Prime Solutions</span>
+          <span className="brand-name" style={isSuperAdmin ? { color: "#c084fc" } : {}}>Elite Innovation</span>
           {isSuperAdmin && (
             <span style={{
               fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.1em",
@@ -1214,6 +1214,28 @@ function AdminDashboard({ user, setUser }) {
                                   📅 {dDebut}{dFin && dFin !== dDebut ? ` → ${dFin}` : ""}
                                   {s.lieu ? ` · ${s.lieu}` : ""}
                                   {s.capacite != null ? ` · ${s.capacite} places` : ""} · {st.label}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* ── Occupation par module ── */}
+                        {Array.isArray(f.modules) && f.modules.length > 0 && (
+                          <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {f.modules.map((m, mi) => {
+                              const modOcc = getModuleOccupation(f.id, m.titre);
+                              return (
+                                <span
+                                  key={mi}
+                                  title={m.titre || ""}
+                                  style={{
+                                    fontSize: "0.72rem", fontWeight: 600, padding: "3px 10px", borderRadius: 20,
+                                    background: "rgba(26,111,196,0.08)", color: "#1a6fc4",
+                                    border: "1px solid rgba(26,111,196,0.25)", whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  🧩 {m.titre} · {modOcc} inscrit{modOcc > 1 ? "s" : ""}
                                 </span>
                               );
                             })}

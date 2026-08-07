@@ -259,7 +259,7 @@ function AdminModules({ user }) {
       <nav className="navbar">
         <div className="navbar-brand" style={{ cursor: "pointer" }} onClick={() => navigate("/admin")}>
           <div className="brand-icon">⚡</div>
-          <span className="brand-name">TZ Prime Solutions — Admin</span>
+          <span className="brand-name">Elite Innovation — Admin</span>
         </div>
         <div className="navbar-links">
           <button

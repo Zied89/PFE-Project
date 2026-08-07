@@ -143,7 +143,7 @@ function InscriptionConfirm() {
       <nav className="ic-navbar">
         <div className="ic-brand">
           <span>⚡</span>
-          <span>TZ Prime Solutions</span>
+          <span>Elite Innovation</span>
         </div>
       </nav>
 
