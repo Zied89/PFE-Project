@@ -2,7 +2,12 @@
 
 .ic-page {
   min-height: 100vh;
-  background: linear-gradient(160deg, #e0f7ff 0%, #f6fbff 55%, #d9f1ff 100%);
+  background:
+    linear-gradient(135deg, rgba(10,36,80,0.65) 0%, rgba(14,165,233,0.42) 50%, rgba(10,36,80,0.70) 100%),
+    var(--tzp-bg-image);
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
   font-family: 'DM Sans', sans-serif;
   padding-bottom: 3rem;
 }

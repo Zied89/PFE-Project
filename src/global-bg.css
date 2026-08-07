@@ -1,8 +1,15 @@
 /* ==========================================================
    Fond global — appliqué à toutes les pages
-   Remplacez le chemin ci-dessous par l'emplacement réel
-   de votre image dans le projet (ex: src/assets/, public/assets/...)
    ========================================================== */
+
+:root {
+  --tzp-bg-image: none;
+  --tzp-bg-overlay: linear-gradient(
+    180deg,
+    rgba(6, 10, 20, 0.55) 0%,
+    rgba(6, 10, 20, 0.75) 100%
+  );
+}
 
 html {
   background: #0a0f1a; /* couleur de repli pendant le chargement de l'image */
@@ -13,12 +20,16 @@ body {
   margin: 0;
 
   background-image:
-    linear-gradient(180deg, rgba(6, 10, 20, 0.55) 0%, rgba(6, 10, 20, 0.75) 100%),
-    url('/assets/bg.jpg');
+    var(--tzp-bg-overlay),
+    var(--tzp-bg-image);
   background-repeat: no-repeat;
   background-position: center top;
   background-size: cover;
   background-attachment: fixed;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 /* Sur mobile, background-attachment: fixed peut être coûteux / bugué
