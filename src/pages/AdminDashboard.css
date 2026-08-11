@@ -78,10 +78,10 @@
 }
 .adm-hero-title {
   font-family: 'Cinzel', serif; font-size: 28px; font-weight: 600;
-  color: #0b3d78; margin: 0 0 8px;
+  color: #ffff; margin: 0 0 8px;
   text-shadow: 0 2px 16px #b8d8f855;
 }
-.adm-hero-sub { font-size: 13px; color: #3a7abf; margin: 0 0 20px; line-height: 1.6; }
+.adm-hero-sub { font-size: 16px; color: #dadde0; margin: 0 0 20px; line-height: 1.6; }
 .adm-hero-divider {
   width: 60px; height: 3px;
   background: linear-gradient(90deg, #5ab4ff, #a8d8ff);

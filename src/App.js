@@ -6,7 +6,7 @@ import Register from "./pages/Register";
 import ChooseServices from "./pages/ChooseServices";
 import Formation from "./pages/Formation";
 import FormationDetail from "./pages/FormationDetail";
-import Coworking from "./pages/CoWorking";
+import Coworking from "./pages/Coworking";
 import DashboardRouter from "./pages/DashboardRouter";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import MesCommandes from "./pages/MesCommandes";

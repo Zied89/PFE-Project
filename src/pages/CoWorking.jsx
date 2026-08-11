@@ -1144,20 +1144,20 @@ function Coworking({ user }) {
 
               return (
                 <div style={{
-                  border: "1px solid rgba(0,0,0,0.1)", borderRadius: 8, padding: "8px 10px", marginBottom: 4,
-                  maxWidth: 260,
+                  border: "1.5px solid #b8d8f8", borderRadius: 12, padding: "10px 12px", marginBottom: 4,
+                  maxWidth: 280, background: "#ffffff",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                     <button type="button" onClick={prevMonth} disabled={!canGoPrev}
-                      style={{ border: "none", background: "transparent", cursor: canGoPrev ? "pointer" : "default", opacity: canGoPrev ? 1 : 0.3, fontSize: "0.9rem", padding: 2, lineHeight: 1 }}>‹</button>
-                    <strong style={{ textTransform: "capitalize", fontSize: "0.76rem" }}>{monthLabel}</strong>
+                      style={{ border: "none", background: "transparent", cursor: canGoPrev ? "pointer" : "default", opacity: canGoPrev ? 1 : 0.3, color: "#1a6fc4", fontSize: "1.05rem", fontWeight: 700, padding: 4, lineHeight: 1 }}>‹</button>
+                    <strong style={{ textTransform: "capitalize", fontSize: "0.85rem", color: "#0b3d78", fontWeight: 700 }}>{monthLabel}</strong>
                     <button type="button" onClick={nextMonth}
-                      style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "0.9rem", padding: 2, lineHeight: 1 }}>›</button>
+                      style={{ border: "none", background: "transparent", cursor: "pointer", color: "#1a6fc4", fontSize: "1.05rem", fontWeight: 700, padding: 4, lineHeight: 1 }}>›</button>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, fontSize: "0.58rem", opacity: 0.6, marginBottom: 3, textAlign: "center" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, fontSize: "0.68rem", fontWeight: 700, color: "#3a7abf", opacity: 1, marginBottom: 4, textAlign: "center" }}>
                     {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => <span key={i}>{d}</span>)}
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
                     {cells.map((d, i) => {
                       if (!d) return <span key={i} />;
                       const dStr = dateToStr(d);
@@ -1193,14 +1193,15 @@ function Coworking({ user }) {
                             aDesCreneauxConfirmes ? `Heure(s) déjà réservée(s) : ${heuresReserveesLabel}` : ""
                           }
                           style={{
-                            aspectRatio: "1", minWidth: 0, padding: 0, borderRadius: 5, fontSize: "0.64rem",
+                            aspectRatio: "1", minWidth: 0, padding: 0, borderRadius: 8, fontSize: "0.75rem",
                             position: "relative",
-                            border: isSelected ? "1.5px solid #4dd6a0" : estPartiellementReserve ? "1px solid rgba(245,158,11,0.45)" : "1px solid rgba(0,0,0,0.08)",
-                            background: isSelected ? "#4dd6a0" : isOccupied ? "rgba(239,68,68,0.12)" : estPartiellementReserve ? "rgba(245,158,11,0.16)" : "transparent",
-                            color: isSelected ? "#08321f" : isOccupied ? "#ef4444" : estPartiellementReserve ? "#b45309" : isPast ? "#b7c3d9" : "inherit",
+                            border: isSelected ? "1.5px solid #17a874" : estPartiellementReserve ? "1.5px solid #f59e0b" : isOccupied ? "1.5px solid #ef4444" : "1.5px solid #dbeeff",
+                            background: isSelected ? "#4dd6a0" : isOccupied ? "#fdeaea" : estPartiellementReserve ? "#fef3dc" : "#f5f9ff",
+                            color: isSelected ? "#08321f" : isOccupied ? "#c0392b" : estPartiellementReserve ? "#b07d0a" : isPast ? "#9fb3c8" : "#0b3d78",
                             cursor: disabled ? "not-allowed" : "pointer",
-                            fontWeight: isSelected ? 700 : estPartiellementReserve ? 600 : 400,
+                            fontWeight: isSelected ? 700 : estPartiellementReserve ? 700 : 600,
                             textDecoration: journeeBloquee ? "line-through" : "none",
+                            transition: "background .15s, border-color .15s",
                           }}
                         >
                           {d.getDate()}
@@ -1214,10 +1215,10 @@ function Coworking({ user }) {
                       );
                     })}
                   </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 6, fontSize: "0.6rem", opacity: 0.75, flexWrap: "wrap" }}>
-                    <span><span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: "#4dd6a0", marginRight: 3, verticalAlign: "middle" }} />Sélectionné</span>
-                    <span><span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: "rgba(239,68,68,0.4)", marginRight: 3, verticalAlign: "middle" }} />Indisponible pour cet horaire</span>
-                    <span><span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: "rgba(245,158,11,0.35)", marginRight: 3, verticalAlign: "middle" }} />Jour avec des heures déjà réservées (survolez pour les voir)</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, fontSize: "0.68rem", color: "#3a6e9e", fontWeight: 600, opacity: 1 }}>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#4dd6a0", marginRight: 5, verticalAlign: "middle" }} />Sélectionné</span>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#ef4444", marginRight: 5, verticalAlign: "middle" }} />Indisponible pour cet horaire</span>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#f59e0b", marginRight: 5, verticalAlign: "middle" }} />Jour avec des heures déjà réservées (survolez pour les voir)</span>
                   </div>
                 </div>
               );
@@ -1243,8 +1244,9 @@ function Coworking({ user }) {
               const fraisTotal = +(fraisParJour * nbJours).toFixed(2);
               return (
                 <div className="cw-frais-box" style={{
-                  background: "rgba(77,214,160,0.1)",
-                  border: "1px solid rgba(77,214,160,0.35)",
+                  background: "rgba(0, 8, 5, 0.1)",
+                  color:"black",
+                  border: "1px solid rgba(0, 0, 0, 0.35)",
                   borderRadius: 8,
                   padding: "10px 12px",
                   margin: "10px 0",

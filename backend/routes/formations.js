@@ -102,7 +102,7 @@ router.post("/inscrire-multiple", authMiddleware, async (req, res) => {
       if (!formCheck.rows.length) continue;
 
       const isExist = await client.query(
-        "SELECT id FROM inscriptions WHERE user_id = $1 AND formation_id = $2",
+        "SELECT id FROM inscriptions WHERE user_id = $1 AND formation_id = $2 AND type = 'formation'",
         [req.user.id, id]
       );
       if (isExist.rows.length) {
@@ -111,7 +111,7 @@ router.post("/inscrire-multiple", authMiddleware, async (req, res) => {
       }
 
       await client.query(
-        "INSERT INTO inscriptions (user_id, formation_id, statut) VALUES ($1, $2, $3)",
+        "INSERT INTO inscriptions (user_id, formation_id, statut, type) VALUES ($1, $2, $3, 'formation')",
         [req.user.id, id, "en_attente"]
       );
       added.push(id);
@@ -275,14 +275,14 @@ router.post("/:id/inscrire", authMiddleware, async (req, res) => {
     const formation = formCheck.rows[0];
 
     const existing = await db.query(
-      "SELECT id FROM inscriptions WHERE user_id = $1 AND formation_id = $2",
+      "SELECT id FROM inscriptions WHERE user_id = $1 AND formation_id = $2 AND type = 'formation'",
       [req.user.id, id]
     );
     if (existing.rows.length)
       return res.status(409).json({ message: "Vous êtes déjà inscrit à cette formation." });
 
     const { rows } = await db.query(
-      "INSERT INTO inscriptions (user_id, formation_id, statut) VALUES ($1, $2, $3) RETURNING *",
+      "INSERT INTO inscriptions (user_id, formation_id, statut, type) VALUES ($1, $2, $3, 'formation') RETURNING *",
       [req.user.id, id, "en_attente"]
     );
     return res.status(201).json({
@@ -331,7 +331,7 @@ router.post("/:id/cours/inscrire", authMiddleware, async (req, res) => {
     });
   } catch (err) {
     if (err.code === "23505") {
-      return res.status(409).json({ message: "Vous êtes déjà inscrit à ce cours ou à cette formation." });
+      return res.status(409).json({ message: "Vous êtes déjà inscrit à ce cours." });
     }
     console.error("[cours inscrire POST]", err);
     return res.status(500).json({ message: "Erreur serveur." });

@@ -236,3 +236,128 @@
   background: rgba(255,255,255,0.96) !important;
   box-shadow: 0 24px 64px rgba(10,36,80,0.28) !important;
 }
+/* ═══════════════════════════════════════════════════════════
+   TZP: Calendrier de réservation (react-datepicker) — lisibilité
+   ═══════════════════════════════════════════════════════════ */
+
+.cw-modal .react-datepicker,
+.cw-modal .react-datepicker__month-container {
+  width: 100%;
+  background: #ffffff !important;
+  border: none !important;
+  font-family: 'Nunito', sans-serif !important;
+}
+
+/* En-tête (mois / année + flèches) */
+.cw-modal .react-datepicker__header {
+  background: transparent !important;
+  border-bottom: 1.5px solid #dbeeff !important;
+  padding-top: 2px !important;
+}
+.cw-modal .react-datepicker__current-month {
+  color: #0b3d78 !important;
+  font-family: 'Cinzel', serif !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+}
+.cw-modal .react-datepicker__navigation-icon::before {
+  border-color: #1a6fc4 !important;
+  border-width: 2px 2px 0 0 !important;
+  opacity: 1 !important;
+}
+.cw-modal .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #0b3d78 !important;
+}
+
+/* Noms des jours (L M M J V S D) */
+.cw-modal .react-datepicker__day-names {
+  margin-top: 6px !important;
+}
+.cw-modal .react-datepicker__day-name {
+  color: #3a7abf !important;
+  font-weight: 700 !important;
+  font-size: 11.5px !important;
+  opacity: 1 !important;
+  width: 2rem !important;
+  line-height: 1.8rem !important;
+}
+
+/* Cases des jours */
+.cw-modal .react-datepicker__day {
+  color: #0b3d78 !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  opacity: 1 !important;
+  width: 2rem !important;
+  line-height: 2rem !important;
+  border-radius: 10px !important;
+  margin: 2px !important;
+  transition: background .15s, color .15s;
+}
+.cw-modal .react-datepicker__day:hover {
+  background: #dbeeff !important;
+  color: #0b3d78 !important;
+}
+
+/* Jour du mois précédent/suivant affiché en grisé — reste lisible */
+.cw-modal .react-datepicker__day--outside-month {
+  color: #a9c3dc !important;
+  font-weight: 500 !important;
+  opacity: 1 !important;
+}
+
+/* Jour désactivé (non réservable) */
+.cw-modal .react-datepicker__day--disabled {
+  color: #c7d6e5 !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+  text-decoration: line-through;
+}
+
+/* Aujourd'hui */
+.cw-modal .react-datepicker__day--today {
+  border: 1.5px solid #5ab4ff !important;
+  font-weight: 700 !important;
+}
+
+/* Sélectionné / plage sélectionnée */
+.cw-modal .react-datepicker__day--selected,
+.cw-modal .react-datepicker__day--keyboard-selected,
+.cw-modal .react-datepicker__day--in-selecting-range,
+.cw-modal .react-datepicker__day--in-range {
+  background: linear-gradient(135deg, #1a6fc4, #5ab4ff) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+.cw-modal .react-datepicker__day--range-start,
+.cw-modal .react-datepicker__day--range-end {
+  background: #0b3d78 !important;
+  color: #ffffff !important;
+}
+
+/* Légende des couleurs sous le calendrier (points + libellés) */
+.cw-modal .cw-calendar-legend,
+.cw-modal .calendar-legend {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  margin-top: 10px !important;
+}
+.cw-modal .cw-calendar-legend *,
+.cw-modal .calendar-legend * {
+  opacity: 1 !important;
+}
+.cw-modal .cw-calendar-legend span:not([class*="dot"]),
+.cw-modal .calendar-legend span:not([class*="dot"]) {
+  color: #3a6e9e !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+}
+/* Repli générique : si la légende utilise d'autres classes, on force quand même la lisibilité du texte juste après un petit point coloré */
+.cw-modal [class*="legend"] {
+  color: #3a6e9e !important;
+  opacity: 1 !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+}
