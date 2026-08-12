@@ -90,6 +90,11 @@ const [formation, setFormation] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Occupation réelle par module (inscriptions acceptées), calculée côté serveur
+  // pour ne pas exposer la liste complète des inscriptions (données personnelles)
+  // sur une page publique. { total, parModule: { [titre]: count } }
+  const [occupation, setOccupation] = useState(null);
+
   // Panier partagé avec Formation.jsx via localStorage
   const [cart, setCart] = useState(() => {
     try {
@@ -119,6 +124,24 @@ const [formation, setFormation] = useState(null);
       }
     };
     fetchFormation();
+  }, [id]);
+
+  // Charge le nombre réel d'inscrits (par module + total) pour cette formation.
+  // Endpoint léger et public — ne renvoie que des compteurs agrégés, jamais les
+  // inscriptions elles-mêmes. Si l'endpoint n'existe pas encore côté backend,
+  // on échoue silencieusement : les compteurs sont simplement masqués.
+  useEffect(() => {
+    const fetchOccupation = async () => {
+      try {
+        const oRes = await fetch(`${API}/formations/${id}/occupation`);
+        if (!oRes.ok) return;
+        const oData = await oRes.json();
+        setOccupation(oData);
+      } catch {
+        // silencieux : pas de compteur affiché tant que le backend n'expose pas la route
+      }
+    };
+    fetchOccupation();
   }, [id]);
 
   // ── Panier helpers ──────────────────────────────────────────────────────────
@@ -201,6 +224,9 @@ const handleCheckout = async () => {
         title: m.titre,
         duration: m.duree || null,
         prix: Number(m.prix || 0),
+        // Compteur réel (inscriptions acceptées) — absent tant que /occupation
+        // n'a pas répondu, pour ne jamais afficher un faux "0 inscrits".
+        students: occupation?.parModule?.[m.titre] ?? null,
       }))
     : (coursesByCategory[formation.categorie] || []);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";

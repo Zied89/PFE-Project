@@ -76,6 +76,7 @@ function AdminDashboard({ user, setUser }) {
   const [form, setForm] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [resDetails, setResDetails] = useState(null); // réservation affichée dans la modale "détails complets"
+  const [insDetails, setInsDetails] = useState(null); // inscription affichée dans la modale "détails complets"
 
   // ── History filters
   const [histTypeFilter, setHistTypeFilter] = useState("tous");   // "tous" | "reservations" | "inscriptions"
@@ -1304,6 +1305,9 @@ function AdminDashboard({ user, setUser }) {
                       </div>
                       <div className="adm-list-right">
                         <span className="adm-badge badge-suspendu">⏳ En attente</span>
+                        <button className="adm-btn-sm adm-btn-edit" onClick={() => setInsDetails(ins)}>
+                          🔍 Détails
+                        </button>
                         <button className="adm-btn-sm adm-btn-success" onClick={() => updateStatutInscription(ins.id, "acceptée")}>
                           ✅ Accepter
                         </button>
@@ -1446,9 +1450,12 @@ function AdminDashboard({ user, setUser }) {
                           ) : (
                             <span className="adm-badge badge-inactif">❌ Refusé(e)</span>
                           )}
-                          {isReserv && (
-                            <button className="adm-btn-sm adm-btn-edit" onClick={() => setResDetails(item)}>🔍 Détails</button>
-                          )}
+                          <button
+                            className="adm-btn-sm adm-btn-edit"
+                            onClick={() => (isReserv ? setResDetails(item) : setInsDetails(item))}
+                          >
+                            🔍 Détails
+                          </button>
                           {/* Suppression libre depuis l'historique */}
                           <button
                             className="adm-btn-sm adm-btn-del"
@@ -1850,6 +1857,117 @@ function AdminDashboard({ user, setUser }) {
                 </>
               )}
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {insDetails && (
+        <Modal title="Détails de l'inscription" onClose={() => setInsDetails(null)}>
+          <div className="adm-form" style={{ gap: 0 }}>
+            {/* En-tête */}
+            {(() => {
+              const isCours = insDetails.type === "cours";
+              const titre = isCours
+                ? insDetails.cours_titre
+                : (insDetails.formation_titre || `Formation #${insDetails.formation_id}`);
+              const prix = isCours ? insDetails.cours_prix : insDetails.formation_prix;
+              return (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+                    <div style={{
+                      width: 46, height: 46, borderRadius: 12, display: "flex", alignItems: "center",
+                      justifyContent: "center", fontSize: "1.4rem", background: "#eaf3fd", flexShrink: 0,
+                    }}>
+                      {isCours ? "📘" : "🎓"}
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, color: "#0b3d78", fontSize: "1.1rem" }}>{titre || "—"}</h3>
+                      <span className={`adm-badge ${isCours ? "badge-admin" : "badge-user"}`} style={{ marginTop: 4, display: "inline-block" }}>
+                        {isCours ? "Cours individuel" : "Formation complète"}
+                      </span>
+                    </div>
+                    <span
+                      className={`adm-badge ${
+                        insDetails.statut === "acceptée" ? "badge-actif" :
+                        insDetails.statut === "refusée"  ? "badge-inactif" :
+                        "badge-suspendu"
+                      }`}
+                      style={{ marginLeft: "auto" }}
+                    >
+                      {insDetails.statut === "acceptée" ? "✅ Acceptée" :
+                       insDetails.statut === "refusée"  ? "❌ Refusée"  :
+                       "⏳ En attente"}
+                    </span>
+                  </div>
+
+                  {/* Détails en grille */}
+                  <div style={{
+                    display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 20px",
+                    padding: "16px", background: "#f6faff", borderRadius: 12, marginBottom: 16,
+                  }}>
+                    {isCours && insDetails.formation_titre && (
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <p style={{ margin: 0, fontSize: "0.72rem", color: "#78b8f0", fontWeight: 700, textTransform: "uppercase" }}>📚 Formation associée</p>
+                        <p style={{ margin: "3px 0 0", color: "#0b3d78", fontWeight: 600 }}>{insDetails.formation_titre}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p style={{ margin: 0, fontSize: "0.72rem", color: "#78b8f0", fontWeight: 700, textTransform: "uppercase" }}>💰 Tarif</p>
+                      <p style={{ margin: "3px 0 0", color: "#0b3d78", fontWeight: 600 }}>
+                        {prix != null ? `${Number(prix).toLocaleString("fr-TN")} TND` : "—"}
+                      </p>
+                    </div>
+                    {insDetails.session_titre && (
+                      <div>
+                        <p style={{ margin: 0, fontSize: "0.72rem", color: "#78b8f0", fontWeight: 700, textTransform: "uppercase" }}>🗓 Session</p>
+                        <p style={{ margin: "3px 0 0", color: "#0b3d78", fontWeight: 600 }}>{insDetails.session_titre}</p>
+                      </div>
+                    )}
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <p style={{ margin: 0, fontSize: "0.72rem", color: "#78b8f0", fontWeight: 700, textTransform: "uppercase" }}>👤 Inscrit par</p>
+                      <p style={{ margin: "3px 0 0", color: "#0b3d78", fontWeight: 600 }}>
+                        {insDetails.user_name || `ID ${insDetails.user_id}` || "—"}
+                        {insDetails.user_email && (
+                          <span style={{ color: "#5a7ba6", fontWeight: 400 }}> — {insDetails.user_email}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: "0.72rem", color: "#78b8f0", fontWeight: 700, textTransform: "uppercase" }}>🆔 ID inscription</p>
+                      <p style={{ margin: "3px 0 0", color: "#0b3d78", fontWeight: 600 }}>#{insDetails.id}</p>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: "0.72rem", color: "#78b8f0", fontWeight: 700, textTransform: "uppercase" }}>🕓 Demande créée le</p>
+                      <p style={{ margin: "3px 0 0", color: "#0b3d78", fontWeight: 600 }}>
+                        {insDetails.created_at ? new Date(insDetails.created_at).toLocaleString("fr-TN") : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="adm-form-actions">
+                    <button className="adm-btn-cancel" onClick={() => setInsDetails(null)}>Fermer</button>
+                    {(!insDetails.statut || insDetails.statut === "en_attente") && (
+                      <>
+                        <button
+                          className="adm-btn-save"
+                          style={{ background: "#22c55e" }}
+                          onClick={() => { updateStatutInscription(insDetails.id, "acceptée"); setInsDetails(null); }}
+                        >
+                          ✅ Accepter
+                        </button>
+                        <button
+                          className="adm-btn-save"
+                          style={{ background: "#ef4444" }}
+                          onClick={() => { updateStatutInscription(insDetails.id, "refusée"); setInsDetails(null); }}
+                        >
+                          ❌ Refuser
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </Modal>
       )}

@@ -370,8 +370,20 @@
 .adm-modal {
   background: rgba(255,255,255,.97); border: 1.5px solid #b8d8f8;
   border-radius: 24px; padding: 28px; width: 100%; max-width: 440px;
+  max-height: 88vh; overflow-y: auto;
   box-shadow: 0 20px 60px #1a6fc422; animation: fadeUp .25s ease;
+  scrollbar-width: thin;
+  scrollbar-color: #7cc0ff #eaf4ff;
 }
+.adm-modal::-webkit-scrollbar { width: 8px; }
+.adm-modal::-webkit-scrollbar-track {
+  background: #eaf4ff; border-radius: 999px;
+}
+.adm-modal::-webkit-scrollbar-thumb {
+  background: #7cc0ff; border-radius: 999px;
+  border: 2px solid #eaf4ff;
+}
+.adm-modal::-webkit-scrollbar-thumb:hover { background: #5ab4ff; }
 .adm-modal-header {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 22px;
