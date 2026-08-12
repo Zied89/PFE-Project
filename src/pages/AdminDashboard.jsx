@@ -550,6 +550,53 @@ function AdminDashboard({ user, setUser }) {
   });
   const donutGradient = `conic-gradient(${donutSegments.join(", ")})`;
 
+  /* ── 💰 Revenus (calculés à partir des inscriptions acceptées) ──
+     Une inscription "formation" facture formation_prix, une inscription
+     "cours" (module isolé) facture cours_prix. Seules les inscriptions au
+     statut "acceptée" comptent comme revenu confirmé. */
+  const acceptedInscriptions = inscriptions.filter((i) => i.statut === "acceptée");
+
+  const inscriptionMontant = (i) =>
+    Number(i.type === "cours" ? (i.cours_prix ?? 0) : (i.formation_prix ?? 0)) || 0;
+
+  const totalRevenueFormations = acceptedInscriptions
+    .filter((i) => i.type !== "cours")
+    .reduce((sum, i) => sum + inscriptionMontant(i), 0);
+
+  const totalRevenueCours = acceptedInscriptions
+    .filter((i) => i.type === "cours")
+    .reduce((sum, i) => sum + inscriptionMontant(i), 0);
+
+  const totalRevenue = totalRevenueFormations + totalRevenueCours;
+
+  const revenuePending = inscriptions
+    .filter((i) => !i.statut || i.statut === "en_attente")
+    .reduce((sum, i) => sum + inscriptionMontant(i), 0);
+
+  // Détail par formation : total encaissé + nb d'inscriptions (formation + cours confondus)
+  const revenueByFormation = (() => {
+    const map = {};
+    acceptedInscriptions.forEach((i) => {
+      const key = String(i.formation_id ?? "inconnue");
+      if (!map[key]) {
+        map[key] = {
+          formationId: i.formation_id,
+          titre: i.formation_titre || `Formation #${i.formation_id}`,
+          total: 0,
+          nbFormationComplete: 0,
+          nbCours: 0,
+        };
+      }
+      const montant = inscriptionMontant(i);
+      map[key].total += montant;
+      if (i.type === "cours") map[key].nbCours += 1;
+      else map[key].nbFormationComplete += 1;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  })();
+
+  const maxRevenueFormation = Math.max(...revenueByFormation.map((r) => r.total), 1);
+
   /* ── Taux d'occupation des salles (calculé à partir des vraies réservations) ── */
   const OPENING_HOUR = 8;   // 08:00
   const CLOSING_HOUR = 20;  // 20:00
@@ -1484,6 +1531,108 @@ function AdminDashboard({ user, setUser }) {
               <h2 className="adm-section-title">Statistiques</h2>
             </div>
 
+            {/* ── 💰 Revenus (formations + cours) ── */}
+            <div className="adm-toolbar">
+              <h2 className="adm-section-title">💰 Revenus</h2>
+            </div>
+
+            <div className="adm-stats-row">
+              <div className="adm-stats-card">
+                <h3 className="adm-stats-card-title">💵 Total encaissé</h3>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "10px 0" }}>
+                  <span style={{ fontSize: "2.4rem", fontWeight: 800, color: "#0b3d78" }}>
+                    {totalRevenue.toLocaleString("fr-TN")}
+                  </span>
+                  <span style={{ color: "#78b8f0", fontSize: "0.95rem", fontWeight: 700 }}>TND</span>
+                </div>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "#5a7ea8" }}>
+                  Sur {acceptedInscriptions.length} inscription{acceptedInscriptions.length > 1 ? "s" : ""} <strong>acceptée{acceptedInscriptions.length > 1 ? "s" : ""}</strong>.
+                </p>
+              </div>
+
+              <div className="adm-stats-card">
+                <h3 className="adm-stats-card-title">📚 Revenus — Formations complètes</h3>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "10px 0" }}>
+                  <span style={{ fontSize: "2rem", fontWeight: 800, color: "#0b3d78" }}>
+                    {totalRevenueFormations.toLocaleString("fr-TN")}
+                  </span>
+                  <span style={{ color: "#78b8f0", fontSize: "0.85rem", fontWeight: 700 }}>TND</span>
+                </div>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "#5a7ea8" }}>
+                  {acceptedInscriptions.filter((i) => i.type !== "cours").length} inscription(s) formation complète.
+                </p>
+              </div>
+
+              <div className="adm-stats-card">
+                <h3 className="adm-stats-card-title">🎓 Revenus — Cours individuels</h3>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "10px 0" }}>
+                  <span style={{ fontSize: "2rem", fontWeight: 800, color: "#0b3d78" }}>
+                    {totalRevenueCours.toLocaleString("fr-TN")}
+                  </span>
+                  <span style={{ color: "#78b8f0", fontSize: "0.85rem", fontWeight: 700 }}>TND</span>
+                </div>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "#5a7ea8" }}>
+                  {acceptedInscriptions.filter((i) => i.type === "cours").length} inscription(s) à un module isolé.
+                </p>
+              </div>
+
+              <div className="adm-stats-card">
+                <h3 className="adm-stats-card-title">⏳ Revenus potentiels en attente</h3>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "10px 0" }}>
+                  <span style={{ fontSize: "2rem", fontWeight: 800, color: "#b8860b" }}>
+                    {revenuePending.toLocaleString("fr-TN")}
+                  </span>
+                  <span style={{ color: "#d8ae52", fontSize: "0.85rem", fontWeight: 700 }}>TND</span>
+                </div>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "#5a7ea8" }}>
+                  Si toutes les inscriptions en attente sont acceptées.
+                </p>
+              </div>
+            </div>
+
+            {revenueByFormation.length > 0 && (
+              <div className="adm-stats-row" style={{ gridTemplateColumns: "1fr" }}>
+                <div className="adm-stats-card">
+                  <h3 className="adm-stats-card-title">📊 Détail des revenus par formation</h3>
+                  <div className="adm-bar-chart">
+                    {revenueByFormation.map((r) => (
+                      <div className="adm-bar-row" key={r.formationId ?? r.titre}>
+                        <span className="adm-bar-label" title={r.titre}>{r.titre}</span>
+                        <div className="adm-bar-track">
+                          <div
+                            className="adm-bar-fill"
+                            style={{
+                              width: `${Math.min(100, (r.total / maxRevenueFormation) * 100)}%`,
+                              background: "#d4a843",
+                            }}
+                          />
+                        </div>
+                        <span className="adm-bar-val">{r.total.toLocaleString("fr-TN")} TND</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {revenueByFormation.map((r) => (
+                      <div
+                        key={`detail-${r.formationId ?? r.titre}`}
+                        style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                          fontSize: "0.8rem", color: "#5a7ea8", borderTop: "1px solid #eaf4ff", paddingTop: 6,
+                        }}
+                      >
+                        <span>
+                          {r.titre} — {r.nbFormationComplete > 0 && `${r.nbFormationComplete} formation(s) complète(s)`}
+                          {r.nbFormationComplete > 0 && r.nbCours > 0 && " · "}
+                          {r.nbCours > 0 && `${r.nbCours} cours individuel(s)`}
+                        </span>
+                        <strong style={{ color: "#0b3d78" }}>{r.total.toLocaleString("fr-TN")} TND</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── Taux d'occupation des salles ── */}
             <div className="adm-toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
               <h2 className="adm-section-title">🏢 Taux d'occupation des salles</h2>
@@ -2058,6 +2207,21 @@ function AdminDashboard({ user, setUser }) {
             </div>
 
             {/* ── Modules ── */}
+            <style>{`
+              .adm-modules-scroll::-webkit-scrollbar { width: 6px; }
+              .adm-modules-scroll::-webkit-scrollbar-track { background: transparent; }
+              .adm-modules-scroll::-webkit-scrollbar-thumb {
+                background: rgba(148,163,184,0.35);
+                border-radius: 999px;
+              }
+              .adm-modules-scroll::-webkit-scrollbar-thumb:hover {
+                background: rgba(148,163,184,0.55);
+              }
+              .adm-modules-scroll {
+                scrollbar-width: thin;
+                scrollbar-color: rgba(148,163,184,0.35) transparent;
+              }
+            `}</style>
             <div style={{ marginTop: 6, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span className="adm-form-label" style={{ margin: 0 }}>Modules ({(formationForm.modules || []).length})</span>
               <button
@@ -2074,7 +2238,13 @@ function AdminDashboard({ user, setUser }) {
                 Aucun module — la formation apparaîtra sans programme détaillé.
               </p>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+              <div
+                className="adm-modules-scroll"
+                style={{
+                  display: "flex", flexDirection: "column", gap: 8, marginBottom: 8,
+                  maxHeight: 260, overflowY: "auto", paddingRight: 4,
+                }}
+              >
                 {formationForm.modules.map((m, idx) => (
                   <div key={idx} style={{
                     display: "grid", gridTemplateColumns: "1fr 110px 100px auto",
